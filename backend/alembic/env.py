@@ -18,7 +18,7 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-db_url = settings.POSTGRE_DSN
+db_url = settings.POSTGRES_DSN
 if db_url.startswith("postgresql+asyncpg"):
     db_url = db_url.replace("postgresql+asyncpg", "postgresql+psycopg2")
 elif db_url.startswith("asyncpg"):

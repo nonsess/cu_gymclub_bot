@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.config import settings
 
 engine = create_async_engine(
-    settings.POSTGRE_DSN,
+    settings.POSTGRES_DSN,
     echo=False,
     pool_pre_ping=True,
     pool_size=10,
