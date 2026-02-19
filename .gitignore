@@ -1,0 +1,65 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# C extensions
+*.pyd
+
+# Distribution / packaging
+.Python
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+
+# Installations
+# venv/
+venv/
+
+# pip-files
+pip-wheel-cache/
+.pip/
+
+# Unit test / coverage
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+htmlcov/
+.nox/
+
+# Editors/IDEs
+.project
+.idea/  # popular IDE PyCharm project files
+.vscode/ # popular editor VS Code project files
+*.swp
+*~
+.sess
+
+# OS-specific files
+.DS_Store # macOS
+.gitignore.orig
+.project
+
+# Environment variables
+.env
+.venv
+
+# PyInstaller
+# Please customize accordingly
+*.spec
+build/
+dist/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Ruff cache
+.ruff_cache
+
+# Snyk cache
+.dccache
