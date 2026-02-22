@@ -6,7 +6,7 @@ from alembic import context
 from src.db.base import Base
 from src.models.user import User
 from src.models.profile import Profile
-from src.models.user_action import UserAction
+from src.models.action import UserAction
 from src.models.match import Match
 
 from src.core.config import settings

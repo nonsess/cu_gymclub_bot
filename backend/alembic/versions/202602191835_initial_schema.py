@@ -81,7 +81,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-        sa.UniqueConstraint('from_user_id', 'to_user_id', name='uq_actions_from_to'),  # ✅ Уникальность
+        sa.UniqueConstraint('from_user_id', 'to_user_id', name='uq_actions_from_to'),
         sa.CheckConstraint('from_user_id != to_user_id', name='chk_actions_not_self'),
         sa.ForeignKeyConstraint(['from_user_id'], ['users.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['to_user_id'], ['users.id'], ondelete='CASCADE'),
