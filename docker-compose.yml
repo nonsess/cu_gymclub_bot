@@ -24,6 +24,18 @@ services:
     depends_on:
       - db
     restart: unless-stopped
+  
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    environment:
+      BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      BACKEND_URL: http://backend:8000/
+      ADMIN_TELEGRAM_ID: ${ADMIN_TELEGRAM_ID:-}
+    depends_on:
+      - backend
+    restart: unless-stopped
 
 volumes:
   pgdata:
