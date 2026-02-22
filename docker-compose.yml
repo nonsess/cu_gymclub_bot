@@ -10,5 +10,21 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"  # ✅ Проброс порта для тестов
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - model_cache:/app/model_cache
+    depends_on:
+      - db
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  model_cache:
