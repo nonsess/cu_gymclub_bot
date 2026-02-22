@@ -14,8 +14,8 @@ from src.models.base import BaseModel
 
 
 class GenderEnum(str, enum.Enum):
-    MALE = "male"
-    FEMALE = "female"
+    male = "male"
+    female = "female"
 
 
 class Profile(BaseModel):
@@ -23,6 +23,7 @@ class Profile(BaseModel):
         
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     
+    name: Mapped[str] =  mapped_column(String(100), nullable=False)
     description: Mapped[str] = mapped_column(String(1000), nullable=False)
     gender: Mapped[GenderEnum | None] = mapped_column(ENUM(GenderEnum, name="gender_enum", create_type=True), nullable=True)
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
