@@ -4,7 +4,7 @@ from src.schemas.action import ActionCreate, ActionResponse
 
 router = APIRouter(prefix="/actions", tags=["Actions"])
 
-@router.post("/", response_model=ActionResponse)
+@router.post("", response_model=ActionResponse)
 async def send_action(
     action: ActionCreate,
     action_service: ActionServiceDep,
