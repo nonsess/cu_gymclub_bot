@@ -86,9 +86,11 @@ class ProfileService:
             elif not isinstance(user_embedding, list):
                 user_embedding = list(user_embedding)
             
+            current_profile_id = current_profile.id
+            
             profiles = await self.profile_repo.get_similar_profiles(
                 user_embedding=user_embedding,
-                seen_ids=seen_ids + [user_id],
+                seen_ids=seen_ids + [current_profile_id],
                 limit=10,
                 exclude_user_id=user_id
             )
@@ -96,8 +98,11 @@ class ProfileService:
             if profiles:
                 return profiles[0]
         
+        current_profile = await self.profile_repo.get_by_user_id(user_id)
+        current_profile_id = current_profile.id if current_profile else None
+        
         profiles = await self.profile_repo.get_random_profiles(
-            seen_ids=seen_ids + [user_id],
+            seen_ids=seen_ids + ([current_profile_id] if current_profile_id else []),
             limit=10,
             exclude_user_id=user_id
         )
