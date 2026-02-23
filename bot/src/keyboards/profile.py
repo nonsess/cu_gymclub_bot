@@ -7,14 +7,11 @@ def get_start_keyboard(has_profile: bool = False) -> InlineKeyboardMarkup:
     if has_profile:
         keyboard = [
             [
-                InlineKeyboardButton(text="🔍 Начать свайпать", callback_data="start_swiping"),
+                InlineKeyboardButton(text="🔍 Смотреть анкеты", callback_data="start_swiping"),
             ],
             [
                 InlineKeyboardButton(text="👤 Моя анкета", callback_data="my_profile"),
                 InlineKeyboardButton(text="❤️ Входящие лайки", callback_data="check_incoming"),
-            ],
-            [
-                InlineKeyboardButton(text="💞 Матчи", callback_data="my_matches"),
             ],
         ]
     else:
@@ -23,9 +20,7 @@ def get_start_keyboard(has_profile: bool = False) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="📝 Создать анкету", callback_data="create_profile"),
             ],
         ]
-    
-    keyboard.append([InlineKeyboardButton(text="❓ Помощь", callback_data="help")])
-    
+        
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 

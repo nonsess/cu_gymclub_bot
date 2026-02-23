@@ -1,9 +1,11 @@
-from aiogram import Router, F, types
+import logging
+from aiogram import Router, types
 from aiogram.filters import Command
 from src.api.client import backend_client
 from src.keyboards.profile import get_start_keyboard
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(Command("start"))
@@ -15,12 +17,14 @@ async def cmd_start(message: types.Message):
     try:
         await backend_client.register_user(telegram_id, username, first_name)
     except Exception as e:
+        logger.error(f"Error registering user {telegram_id}: {e}")
         await message.answer("⚠️ Ошибка регистрации. Попробуйте позже.")
         return
     
     try:
         profile = await backend_client.get_profile(telegram_id)
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error getting profile for {telegram_id}: {e}")
         profile = None
     
     if profile:

@@ -5,7 +5,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from src.config import settings
-from src.handlers import start, swipe, matches, profile
+from src.handlers import start, swipe, profile, incoming
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,8 +24,8 @@ def create_dispatcher() -> Dispatcher:
     dp.include_routers(
         start.router,
         swipe.router,
-        matches.router,
         profile.router,
+        incoming.router,
     )
     
     dp.startup.register(on_startup)
