@@ -13,14 +13,14 @@ from src.models.base import BaseModel
 
 
 class ActionTypeEnum(str, enum.Enum):
-    LIKE = "like"
-    DISLIKE = "dislike"
-    REPORT = "report"
+    like = "like"
+    dislike = "dislike"
+    report = "report"
 
 
 class UserAction(BaseModel):
     __tablename__ = "user_actions"
-        
+    
     from_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     to_user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     

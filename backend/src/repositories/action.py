@@ -25,7 +25,7 @@ class ActionRepository(BaseRepository[UserAction]):
         query = (
             select(UserAction)
             .where(UserAction.to_user_id == user_id)
-            .where(UserAction.action_type == ActionTypeEnum.LIKE)
+            .where(UserAction.action_type == ActionTypeEnum.like)
             .where(UserAction.from_user_id.notin_(subquery))
             .order_by(UserAction.created_at.desc())
         )
@@ -38,7 +38,7 @@ class ActionRepository(BaseRepository[UserAction]):
             select(UserAction).where(
                 UserAction.from_user_id == user2_id,
                 UserAction.to_user_id == user1_id,
-                UserAction.action_type == ActionTypeEnum.LIKE
+                UserAction.action_type == ActionTypeEnum.like
             )
         )
         return result.scalar_one_or_none() is not None
