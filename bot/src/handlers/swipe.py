@@ -3,16 +3,96 @@ from aiogram import Router, F, types
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from src.keyboards.profile import get_start_keyboard
-from src.keyboards.swipe import get_swipe_keyboard, get_report_reason_keyboard
+
 from src.api.client import backend_client
+from src.keyboards.main_menu import get_main_menu_keyboard, hide_keyboard
+from src.keyboards.swipe import get_swipe_keyboard, get_report_reason_keyboard
 
 router = Router()
 logger = logging.getLogger(__name__)
 
-
 class SwipeStates(StatesGroup):
     viewing_profile = State()
+
+async def _send_profile_update(
+    target: types.CallbackQuery | types.Message,
+    text: str,
+    photo_id: str | None,
+    reply_markup,
+    parse_mode: str = "HTML"
+):
+    is_callback = isinstance(target, types.CallbackQuery)
+    
+    try:
+        if photo_id:
+            if is_callback:
+                try:
+                    await target.message.edit_media(
+                        media=types.InputMediaPhoto(media=photo_id, caption=text, parse_mode=parse_mode),
+                        reply_markup=reply_markup
+                    )
+                    return
+                except Exception as e:
+                    logger.debug(f"edit_media failed, falling back to answer_photo: {e}")
+                await target.message.answer_photo(
+                    photo=photo_id,
+                    caption=text,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup
+                )
+            else:
+                await target.answer_photo(
+                    photo=photo_id,
+                    caption=text,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup
+                )
+        else:
+            if is_callback:
+                try:
+                    await target.message.edit_text(
+                        text,
+                        reply_markup=reply_markup,
+                        parse_mode=parse_mode
+                    )
+                    return
+                except Exception as e:
+                    logger.debug(f"edit_text failed, falling back to answer: {e}")
+                await target.message.answer(
+                    text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode
+                )
+            else:
+                await target.answer(
+                    text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode
+                )
+    except Exception as e:
+        logger.error(f"Error sending profile update: {e}")
+        if is_callback:
+            await target.answer("⚠️ Ошибка отображения", show_alert=True)
+        else:
+            await target.answer("⚠️ Ошибка отображения")
+
+
+def _format_profile_text(profile: dict) -> str:
+    user_name = profile.get('name') or profile.get('first_name') or 'Аноним'
+    
+    desc_parts = profile.get('description', '').split('\n\n🏋️ Опыт тренировок:')
+    main_desc = desc_parts[0]
+    experience = desc_parts[1] if len(desc_parts) > 1 else None
+    
+    text = (
+        f"👤 <b>{user_name}</b>, {profile.get('age', '?')} лет\n\n"
+        f"{main_desc}\n\n"
+    )
+    
+    if experience:
+        text += f"🏋️ <b>Опыт:</b> {experience}\n\n"
+    
+    return text.strip()
 
 
 @router.callback_query(F.data == "start_swiping")
@@ -21,11 +101,28 @@ async def start_swiping(callback: types.CallbackQuery, state: FSMContext):
     
     profile = await backend_client.get_profile(telegram_id)
     if not profile:
-        await callback.answer("Сначала создайте анкету!", show_alert=True)
+        await callback.answer("⚠️ Сначала создайте анкету!", show_alert=True)
         return
     
     await state.update_data(seen_ids=[])
     await show_next_profile(callback, telegram_id, seen_ids=[], state=state)
+
+
+async def start_swiping_callback(
+    message: types.Message,
+    telegram_id: int,
+    state: FSMContext
+):
+    profile = await backend_client.get_profile(telegram_id)
+    if not profile:
+        await message.answer(
+            "⚠️ Сначала создайте анкету!",
+            reply_markup=get_main_menu_keyboard(has_profile=False)
+        )
+        return
+    
+    await state.update_data(seen_ids=[])
+    await show_next_profile(message, telegram_id, seen_ids=[], state=state)
 
 
 async def show_next_profile(
@@ -37,85 +134,97 @@ async def show_next_profile(
     try:
         profile = await backend_client.get_next_profile(telegram_id, seen_ids)
     except Exception as e:
-        logger.error(f"Error getting next profile: {e}")
-        await callback.answer("⚠️ Ошибка загрузки анкеты", show_alert=True)
+        logger.error(f"Error getting next profile for user {telegram_id}: {e}")
+        
+        error_text = "⚠️ Ошибка загрузки анкеты. Попробуйте позже."
+        if isinstance(callback, types.CallbackQuery):
+            await callback.answer(error_text, show_alert=True)
+        else:
+            await callback.answer(error_text)
         return
     
     if not profile:
-        await callback.message.edit_text(
-            "🎉 На сегодня всё!\nЗавтра будут новые анкеты. Заходи позже!\n\n"
-            "Или проверь раздел «Входящие лайки» ❤️",
-            reply_markup=get_start_keyboard(has_profile=True)
+        text = (
+            "🎉 На сегодня всё!\n\n"
+            "Завтра будут новые анкеты. Заходи позже!\n\n"
+            "Или проверь раздел «❤️ Входящие лайки»"
         )
+        
+        try:
+            if isinstance(callback, types.CallbackQuery):
+                await callback.message.edit_text(
+                    text,
+                    reply_markup=get_main_menu_keyboard(has_profile=True)
+                )
+            else:
+                await callback.answer(
+                    text,
+                    reply_markup=get_main_menu_keyboard(has_profile=True)
+                )
+        except Exception as e:
+            logger.debug(f"Failed to edit end message, using answer: {e}")
+            await callback.answer(
+                text,
+                reply_markup=get_main_menu_keyboard(has_profile=True)
+            )
         return
     
     await state.update_data(
         current_profile_id=profile["id"],
         seen_ids=seen_ids + [profile["id"]]
     )
-    
     await state.set_state(SwipeStates.viewing_profile)
     
-    desc_parts = profile.get('description', '').split('\n\n🏋️ Опыт тренировок:')
-    main_desc = desc_parts[0]
-    experience = desc_parts[1] if len(desc_parts) > 1 else None
+    text = _format_profile_text(profile)
+    photo_id = profile['photo_ids'][0] if profile.get('photo_ids') else None
     
-    text = (
-        f"👤 <b>{profile.get('name', 'Аноним')}</b>, {profile.get('age', '?')} лет\n\n"
-        f"{main_desc}\n\n"
-        f"{f'🏋️ <b>Опыт:</b> {experience}' if experience else ''}"
+    await _send_profile_update(
+        target=callback,
+        text=text,
+        photo_id=photo_id,
+        reply_markup=get_swipe_keyboard()
     )
-    
-    if profile.get('photo_ids') and profile['photo_ids']:
-        try:
-            await callback.message.edit_media(
-                media=types.InputMediaPhoto(media=profile['photo_ids'][0], caption=text, parse_mode="HTML"),
-                reply_markup=get_swipe_keyboard()
-            )
-        except Exception:
-            await callback.message.answer(text, reply_markup=get_swipe_keyboard(), parse_mode="HTML")
-    else:
-        await callback.message.edit_text(text, reply_markup=get_swipe_keyboard(), parse_mode="HTML")
 
 
-@router.callback_query(F.data == "swipe_like", StateFilter(SwipeStates.viewing_profile))
-async def swipe_like(callback: types.CallbackQuery, state: FSMContext):
+async def _process_swipe_action(
+    callback: types.CallbackQuery,
+    state: FSMContext,
+    action_type: str,
+    success_message: str | None = None
+):
     telegram_id = callback.from_user.id
     data = await state.get_data()
     to_user_id = data.get("current_profile_id")
     seen_ids = data.get("seen_ids", [])
     
     if not to_user_id:
-        await callback.answer("Ошибка: анкета не найдена", show_alert=True)
+        await callback.answer("⚠️ Ошибка: анкета не найдена", show_alert=True)
         return
     
     try:
-        result = await backend_client.send_action(telegram_id, to_user_id, "like")
+        result = await backend_client.send_action(telegram_id, to_user_id, action_type)
     except Exception as e:
-        logger.error(f"Error sending like: {e}")
-        await callback.answer("⚠️ Ошибка отправки лайка", show_alert=True)
+        logger.error(f"Error sending {action_type} action: {e}")
+        await callback.answer(f"⚠️ Ошибка отправки {action_type}", show_alert=True)
         return
     
-    if result.get("is_match"):
-        await show_next_profile(callback, telegram_id, seen_ids, state)
-    else:
-        await show_next_profile(callback, telegram_id, seen_ids, state)
+    if result.get("is_match") and action_type == "like":
+        logger.info(f"🎉 Match! User {telegram_id} matched with {to_user_id}")
+    
+    if success_message:
+        await callback.answer(success_message)
+    
+    await show_next_profile(callback, telegram_id, seen_ids, state)
+
+
+@router.callback_query(F.data == "swipe_like", StateFilter(SwipeStates.viewing_profile))
+async def swipe_like(callback: types.CallbackQuery, state: FSMContext):
+    await _process_swipe_action(callback, state, action_type="like")
 
 
 @router.callback_query(F.data == "swipe_dislike", StateFilter(SwipeStates.viewing_profile))
 async def swipe_dislike(callback: types.CallbackQuery, state: FSMContext):
-    telegram_id = callback.from_user.id
-    data = await state.get_data()
-    to_user_id = data.get("current_profile_id")
-    seen_ids = data.get("seen_ids", [])
-    
-    if to_user_id:
-        try:
-            await backend_client.send_action(telegram_id, to_user_id, "dislike")
-        except Exception:
-            pass
-    
-    await show_next_profile(callback, telegram_id, seen_ids, state)
+    await _process_swipe_action(callback, state, action_type="dislike")
 
 
 @router.callback_query(F.data == "swipe_report", StateFilter(SwipeStates.viewing_profile))
@@ -124,7 +233,7 @@ async def swipe_report_start(callback: types.CallbackQuery, state: FSMContext):
     to_user_id = data.get("current_profile_id")
     
     if not to_user_id:
-        await callback.answer("Ошибка: анкета не найдена", show_alert=True)
+        await callback.answer("⚠️ Ошибка: анкета не найдена", show_alert=True)
         return
     
     await callback.message.edit_text(
@@ -138,9 +247,8 @@ async def swipe_report_start(callback: types.CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("report_reason_"), StateFilter(SwipeStates.viewing_profile))
 async def swipe_report_submit(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
-    reason = parts[2]
-    to_user_id = parts[3]
-    
+    reason_key = parts[2]
+    to_user_id = int(parts[3])
     telegram_id = callback.from_user.id
     data = await state.get_data()
     seen_ids = data.get("seen_ids", [])
@@ -150,13 +258,14 @@ async def swipe_report_submit(callback: types.CallbackQuery, state: FSMContext):
         "fake": "Фейковая анкета",
         "other": "Другое"
     }
+    reason_text = reason_labels.get(reason_key, reason_key)
     
     try:
         await backend_client.send_action(
-            telegram_id, 
-            int(to_user_id), 
-            "report", 
-            report_reason=reason_labels.get(reason, reason)
+            telegram_id,
+            to_user_id,
+            "report",
+            report_reason=reason_text
         )
     except Exception as e:
         logger.error(f"Error sending report: {e}")

@@ -1,29 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-def get_start_keyboard(has_profile: bool = False) -> InlineKeyboardMarkup:
-    keyboard = []
-    
-    if has_profile:
-        keyboard = [
-            [
-                InlineKeyboardButton(text="🔍 Смотреть анкеты", callback_data="start_swiping"),
-            ],
-            [
-                InlineKeyboardButton(text="👤 Моя анкета", callback_data="my_profile"),
-                InlineKeyboardButton(text="❤️ Входящие лайки", callback_data="check_incoming"),
-            ],
-        ]
-    else:
-        keyboard = [
-            [
-                InlineKeyboardButton(text="📝 Создать анкету", callback_data="create_profile"),
-            ],
-        ]
-        
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-
 def get_profile_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -54,7 +31,39 @@ def get_confirmation_keyboard(confirm_callback: str, cancel_callback: str) -> In
     ])
 
 
-def get_back_keyboard(callback_data: str = "back_to_start") -> InlineKeyboardMarkup:
+def get_inline_back_keyboard(callback_data: str = "back_to_start") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад", callback_data=callback_data)]
+    ])
+
+def get_gender_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="👨 Парень", callback_data="gender_male"),
+            InlineKeyboardButton(text="👩 Девушка", callback_data="gender_female"),
+        ],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")],
+    ])
+
+
+def get_experience_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🔰 Я новичок", callback_data="exp_beginner"),
+            InlineKeyboardButton(text="💪 1-2 года", callback_data="exp_1_2"),
+        ],
+        [
+            InlineKeyboardButton(text="🏋️ 2-3 года", callback_data="exp_2_3"),
+            InlineKeyboardButton(text="🔥 3+ лет", callback_data="exp_3_plus"),
+        ],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")],
+    ])
+
+
+def get_progress_keyboard(step: int, total: int, back_callback: str = "back_to_start") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"🔙 Назад ({step}/{total})",
+            callback_data=back_callback
+        )]
     ])

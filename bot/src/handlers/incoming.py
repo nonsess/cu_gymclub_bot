@@ -3,7 +3,7 @@ from aiogram import Router, F, types
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from src.keyboards.profile import get_start_keyboard
+from src.keyboards.main_menu import get_main_menu_keyboard, hide_keyboard
 from src.keyboards.swipe import get_swipe_keyboard, get_report_reason_keyboard
 from src.api.client import backend_client
 
@@ -36,14 +36,31 @@ async def show_next_incoming(
         profile = None
     
     if not profile:
-        await callback.message.edit_text(
+        text = (
             "🎉 Вы посмотрели все входящие лайки!\n\n"
-            "Заходите позже — возможно, появятся новые ❤️",
-            reply_markup=get_start_keyboard(has_profile=True)
+            "Заходите позже — возможно, появятся новые ❤️"
         )
+        
+        try:
+            if isinstance(callback, types.CallbackQuery):
+                await callback.message.edit_text(
+                    text,
+                    reply_markup=get_main_menu_keyboard(has_profile=True)
+                )
+            else:
+                await callback.answer(
+                    text,
+                    reply_markup=get_main_menu_keyboard(has_profile=True)
+                )
+        except:
+            await callback.answer(
+                text,
+                reply_markup=get_main_menu_keyboard(has_profile=True)
+            )
+        
         await state.clear()
         return
-    
+
     await state.update_data(
         current_incoming_id=profile["id"],
         incoming_seen_ids=seen_ids + [profile["id"]]
@@ -168,3 +185,12 @@ async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContex
     )
     
     await show_next_incoming(callback, telegram_id, seen_ids, state)
+
+async def check_incoming_from_menu(
+    message: types.Message,
+    telegram_id: int,
+    state: FSMContext
+):
+    await state.clear()
+    await state.update_data(seen_ids=[])
+    await show_next_incoming(message, telegram_id, seen_ids=[], state=state)
