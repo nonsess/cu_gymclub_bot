@@ -1,5 +1,4 @@
-from typing import List
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, status
 
 from src.schemas.profile import ProfileCreate, ProfileResponse, ProfileUpdate
 from src.core.deps import CurrentUserDep, ProfileServiceDep
@@ -48,9 +47,5 @@ async def delete_profile(
 async def get_next_profile(
     profile_service: ProfileServiceDep,
     current_user: CurrentUserDep,
-    seen_ids: List[int] = Query(default_factory=list),
 ):
-    return await profile_service.get_next_profile(
-        user_id=current_user.id,
-        seen_ids=seen_ids
-    )
+    return await profile_service.get_next_profile(user_id=current_user.id)

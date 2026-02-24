@@ -8,6 +8,7 @@ from src.core.exceptions.profile import (
     NoMoreProfilesException,
     ProfileAlreadyExistsException
 )
+from src.services.redis import action_cache
 
 class ProfileService:
     def __init__(self, session: AsyncSession):
@@ -76,8 +77,9 @@ class ProfileService:
         await self.profile_repo.delete(profile)
         return True
     
-    async def get_next_profile(self, user_id: int, seen_ids: list[int]):
+    async def get_next_profile(self, user_id: int):
         current_profile = await self.profile_repo.get_by_user_id(user_id)
+        seen_ids = await action_cache.get_seen(user_id)
         
         if current_profile and current_profile.embedding is not None:
             user_embedding = current_profile.embedding
@@ -96,6 +98,7 @@ class ProfileService:
             )
             
             if profiles:
+                await action_cache.add_seen(user_id, profiles[0].id)
                 return profiles[0]
         
         current_profile = await self.profile_repo.get_by_user_id(user_id)
@@ -108,6 +111,7 @@ class ProfileService:
         )
         
         if profiles:
+            await action_cache.add_seen(user_id, profiles[0].id)
             return profiles[0]
         
         raise NoMoreProfilesException()

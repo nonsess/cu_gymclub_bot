@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
-from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 class ActionType(str, Enum):
     LIKE = "like"
@@ -29,20 +28,3 @@ class ActionResponse(BaseModel):
             "is_match": True
         }
     })
-
-
-class IncomingLikeResponse(BaseModel):
-    from_user_id: int = Field(..., description="ID пользователя, который лайкнул")
-    created_at: datetime = Field(..., description="Время лайка")
-    
-    model_config = ConfigDict(from_attributes=True, json_schema_extra={
-        "example": {
-            "from_user_id": 123,
-            "created_at": "2024-02-19T18:30:00"
-        }
-    })
-
-
-class IncomingLikesList(BaseModel):
-    items: List[IncomingLikeResponse]
-    total: int = Field(..., description="Количество входящих лайков")
