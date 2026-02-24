@@ -3,7 +3,7 @@ from aiogram import Router, F, types
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from src.keyboards.main_menu import get_main_menu_keyboard, hide_keyboard
+from src.keyboards.main_menu import get_main_menu_keyboard
 from src.keyboards.swipe import get_swipe_keyboard, get_report_reason_keyboard
 from src.api.client import backend_client
 
@@ -20,17 +20,16 @@ async def check_incoming(callback: types.CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
     
     await state.update_data(seen_ids=[])
-    await show_next_incoming(callback, telegram_id, seen_ids=[], state=state)
+    await show_next_incoming(callback, telegram_id, state=state)
 
 
 async def show_next_incoming(
     callback: types.CallbackQuery | types.Message,
     telegram_id: int,
-    seen_ids: list[int],
     state: FSMContext
 ):
     try:
-        profile = await backend_client.get_next_incoming_like(telegram_id, seen_ids)
+        profile = await backend_client.get_next_incoming_like(telegram_id)
     except Exception as e:
         logger.error(f"Error getting next incoming like: {e}")
         profile = None
@@ -61,10 +60,7 @@ async def show_next_incoming(
         await state.clear()
         return
 
-    await state.update_data(
-        current_incoming_id=profile["id"],
-        incoming_seen_ids=seen_ids + [profile["id"]]
-    )
+    await state.update_data(current_incoming_id=profile["id"])
     
     await state.set_state(IncomingStates.viewing_incoming)
     
@@ -96,7 +92,6 @@ async def incoming_like(callback: types.CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
     data = await state.get_data()
     to_user_id = data.get("current_incoming_id")
-    seen_ids = data.get("incoming_seen_ids", [])
     
     if not to_user_id:
         await callback.answer("Ошибка: анкета не найдена", show_alert=True)
@@ -119,7 +114,7 @@ async def incoming_like(callback: types.CallbackQuery, state: FSMContext):
     else:
         await callback.answer("✅ Вы ответили взаимностью!")
     
-    await show_next_incoming(callback, telegram_id, seen_ids, state)
+    await show_next_incoming(callback, telegram_id, state)
 
 
 @router.callback_query(F.data == "swipe_dislike", StateFilter(IncomingStates.viewing_incoming))
@@ -127,7 +122,6 @@ async def incoming_dislike(callback: types.CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
     data = await state.get_data()
     to_user_id = data.get("current_incoming_id")
-    seen_ids = data.get("incoming_seen_ids", [])
     
     if to_user_id:
         try:
@@ -135,7 +129,7 @@ async def incoming_dislike(callback: types.CallbackQuery, state: FSMContext):
         except Exception:
             pass
     
-    await show_next_incoming(callback, telegram_id, seen_ids, state)
+    await show_next_incoming(callback, telegram_id, state)
 
 
 @router.callback_query(F.data == "swipe_report", StateFilter(IncomingStates.viewing_incoming))
@@ -162,7 +156,6 @@ async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContex
     to_user_id = parts[3]
     telegram_id = callback.from_user.id
     data = await state.get_data()
-    seen_ids = data.get("incoming_seen_ids", [])
     
     reason_labels = {"spam": "Спам/реклама", "fake": "Фейковая анкета", "other": "Другое"}
     
@@ -184,7 +177,7 @@ async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContex
         parse_mode="HTML"
     )
     
-    await show_next_incoming(callback, telegram_id, seen_ids, state)
+    await show_next_incoming(callback, telegram_id, state)
 
 async def check_incoming_from_menu(
     message: types.Message,
@@ -193,4 +186,4 @@ async def check_incoming_from_menu(
 ):
     await state.clear()
     await state.update_data(seen_ids=[])
-    await show_next_incoming(message, telegram_id, seen_ids=[], state=state)
+    await show_next_incoming(message, telegram_id, state=state)

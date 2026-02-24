@@ -104,8 +104,7 @@ async def start_swiping(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("⚠️ Сначала создайте анкету!", show_alert=True)
         return
     
-    await state.update_data(seen_ids=[])
-    await show_next_profile(callback, telegram_id, seen_ids=[], state=state)
+    await show_next_profile(callback, telegram_id, state=state)
 
 
 async def start_swiping_callback(
@@ -121,18 +120,16 @@ async def start_swiping_callback(
         )
         return
     
-    await state.update_data(seen_ids=[])
-    await show_next_profile(message, telegram_id, seen_ids=[], state=state)
+    await show_next_profile(message, telegram_id, state=state)
 
 
 async def show_next_profile(
     callback: types.CallbackQuery | types.Message,
     telegram_id: int,
-    seen_ids: list[int],
     state: FSMContext
 ):
     try:
-        profile = await backend_client.get_next_profile(telegram_id, seen_ids)
+        profile = await backend_client.get_next_profile(telegram_id)
     except Exception as e:
         logger.error(f"Error getting next profile for user {telegram_id}: {e}")
         
@@ -169,10 +166,7 @@ async def show_next_profile(
             )
         return
     
-    await state.update_data(
-        current_profile_id=profile["id"],
-        seen_ids=seen_ids + [profile["id"]]
-    )
+    await state.update_data(current_profile_id=profile["id"])
     await state.set_state(SwipeStates.viewing_profile)
     
     text = _format_profile_text(profile)
@@ -195,7 +189,6 @@ async def _process_swipe_action(
     telegram_id = callback.from_user.id
     data = await state.get_data()
     to_user_id = data.get("current_profile_id")
-    seen_ids = data.get("seen_ids", [])
     
     if not to_user_id:
         await callback.answer("⚠️ Ошибка: анкета не найдена", show_alert=True)
@@ -214,7 +207,7 @@ async def _process_swipe_action(
     if success_message:
         await callback.answer(success_message)
     
-    await show_next_profile(callback, telegram_id, seen_ids, state)
+    await show_next_profile(callback, telegram_id, state)
 
 
 @router.callback_query(F.data == "swipe_like", StateFilter(SwipeStates.viewing_profile))
@@ -250,8 +243,6 @@ async def swipe_report_submit(callback: types.CallbackQuery, state: FSMContext):
     reason_key = parts[2]
     to_user_id = int(parts[3])
     telegram_id = callback.from_user.id
-    data = await state.get_data()
-    seen_ids = data.get("seen_ids", [])
     
     reason_labels = {
         "spam": "Спам/реклама",
@@ -278,4 +269,4 @@ async def swipe_report_submit(callback: types.CallbackQuery, state: FSMContext):
         parse_mode="HTML"
     )
     
-    await show_next_profile(callback, telegram_id, seen_ids, state)
+    await show_next_profile(callback, telegram_id, state)

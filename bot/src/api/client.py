@@ -58,7 +58,7 @@ class BackendClient:
     
     async def update_profile(self, telegram_id: int, profile_data: dict) -> dict:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.put(
+            response = await client.patch(
                 f"{self.base_url}/profile",
                 json=profile_data,
                 headers=self._headers(telegram_id)
@@ -66,15 +66,10 @@ class BackendClient:
             response.raise_for_status()
             return response.json()
     
-    async def get_next_profile(self, telegram_id: int, seen_ids: List[int]) -> Optional[dict]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            params = {}
-            if seen_ids:
-                params["seen_ids"] = seen_ids
-                
+    async def get_next_profile(self, telegram_id: int) -> Optional[dict]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:                
             response = await client.get(
                 f"{self.base_url}/profile/next",
-                params=params,
                 headers=self._headers(telegram_id)
             )
             if response.status_code == 404:
@@ -95,15 +90,10 @@ class BackendClient:
             response.raise_for_status()
             return response.json()
     
-    async def get_next_incoming_like(self, telegram_id: int, seen_ids: List[int]) -> Optional[dict]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            params = {}
-            if seen_ids:
-                params["seen_ids"] = seen_ids
-            
+    async def get_next_incoming_like(self, telegram_id: int) -> Optional[dict]:
+        async with httpx.AsyncClient(timeout=self.timeout) as client:            
             response = await client.get(
                 f"{self.base_url}/matches/incoming/next",
-                params=params,
                 headers=self._headers(telegram_id)
             )
             
@@ -120,15 +110,6 @@ class BackendClient:
                     "to_user_id": target_user_id,
                     "action_type": action_type
                 },
-                headers=self._headers(telegram_id)
-            )
-            response.raise_for_status()
-            return response.json()
-    
-    async def get_matches(self, telegram_id: int) -> List[dict]:
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/matches",
                 headers=self._headers(telegram_id)
             )
             response.raise_for_status()
