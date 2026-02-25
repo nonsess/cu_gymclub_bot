@@ -5,7 +5,7 @@ from src.repositories.user import UserRepository
 from src.repositories.action import ActionRepository
 from src.repositories.match import MatchRepository
 from src.models.action import ActionTypeEnum
-from src.core.exceptions.action import ActionAlreadyExistsException, SelfActionException
+from src.core.exceptions.action import SelfActionException
 from src.services.telegram import telegram_service
 from src.services.redis import action_cache
 
@@ -56,11 +56,7 @@ class ActionService:
     ) -> dict:
         if from_user_id == to_user_id:
             raise SelfActionException()
-        
-        existing = await self.__action_repo.get_action(from_user_id, to_user_id)
-        if existing:
-            raise ActionAlreadyExistsException(from_user_id, to_user_id)
-        
+                
         await self.__action_repo.create(
             from_user_id=from_user_id,
             to_user_id=to_user_id,
@@ -89,9 +85,8 @@ class ActionService:
         target_user_id: int, 
         action_type: ActionTypeEnum
     ) -> dict:
-        existing = await self.__action_repo.get_action(viewer_user_id, target_user_id)
-        if existing:
-            raise ActionAlreadyExistsException(viewer_user_id, target_user_id)
+        if viewer_user_id == target_user_id:
+            raise SelfActionException()
         
         await self.__action_repo.create(
             from_user_id=viewer_user_id,

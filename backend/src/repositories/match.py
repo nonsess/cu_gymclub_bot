@@ -1,6 +1,5 @@
 from src.repositories.base import BaseRepository
 from src.models.match import Match
-from src.core.exceptions.match import MatchAlreadyExistsException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -9,10 +8,6 @@ class MatchRepository(BaseRepository[Match]):
         super().__init__(Match, session)
 
     async def create_match(self, user1_id: int, user2_id: int) -> Match:
-        existing = await self.get_by_users(user1_id, user2_id)
-        if existing:
-            raise MatchAlreadyExistsException(user1_id, user2_id)
-        
         if user1_id > user2_id:
             user1_id, user2_id = user2_id, user1_id
         
