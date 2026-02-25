@@ -4,7 +4,7 @@ from sentence_transformers import SentenceTransformer
 
 class EmbeddingService:
     def __init__(self):
-        self.model = SentenceTransformer(
+        self.__model = SentenceTransformer(
             'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
             cache_folder='/app/model_cache'
         )
@@ -21,7 +21,7 @@ class EmbeddingService:
     ) -> List[float]:
         text = self._clean_description(description)
         print(text)
-        embedding = self.model.encode(
+        embedding = self.__model.encode(
             text,
             convert_to_numpy=True,
             normalize_embeddings=True

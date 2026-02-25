@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 
 class TelegramNotificationService:
     def __init__(self, bot_token: str):
-        self.bot_token = bot_token
-        self.base_url = f"https://api.telegram.org/bot{bot_token}"
+        self.__bot_token = bot_token
+        self.__base_url = f"https://api.telegram.org/bot{bot_token}"
     
     async def send_message(
         self,
@@ -18,11 +18,11 @@ class TelegramNotificationService:
         parse_mode: str = "HTML",
         reply_markup: dict = None
     ) -> bool:
-        if not self.bot_token:
+        if not self.__bot_token:
             logger.warning("Telegram bot token not configured, skipping notification")
             return False
         
-        url = f"{self.base_url}/sendMessage"
+        url = f"{self.__base_url}/sendMessage"
         payload = {
             "chat_id": str(chat_id),
             "text": text,

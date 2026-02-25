@@ -12,10 +12,10 @@ from src.services.redis import action_cache
 
 class ProfileService:
     def __init__(self, session: AsyncSession):
-        self.profile_repo = ProfileRepository(session)
+        self.__profile_repo = ProfileRepository(session)
 
     async def get_profile(self, user_id: int):
-        profile = await self.profile_repo.get_by_user_id(user_id)
+        profile = await self.__profile_repo.get_by_user_id(user_id)
         if not profile:
             raise ProfileNotFoundException(user_id)
         return profile
@@ -25,7 +25,7 @@ class ProfileService:
         user_id: int,
         profile_data: ProfileCreate
     ):
-        existing = await self.profile_repo.get_by_user_id(user_id)
+        existing = await self.__profile_repo.get_by_user_id(user_id)
         if existing:
             raise ProfileAlreadyExistsException(user_id)
         
@@ -33,7 +33,7 @@ class ProfileService:
             profile_data.description
         )
         
-        return await self.profile_repo.create(
+        return await self.__profile_repo.create(
             user_id=user_id,
             name=profile_data.name,
             description=profile_data.description,
@@ -50,7 +50,7 @@ class ProfileService:
         user_id: int,
         profile_data: ProfileUpdate
     ):
-        profile = await self.profile_repo.get_by_user_id(user_id)
+        profile = await self.__profile_repo.get_by_user_id(user_id)
         if not profile:
             raise ProfileNotFoundException(user_id)
 
@@ -67,18 +67,18 @@ class ProfileService:
                 update_data['description']
             )
         
-        return await self.profile_repo.update(profile, **update_data)
+        return await self.__profile_repo.update(profile, **update_data)
 
     async def delete_profile(self, profile_id: int):
-        profile = await self.profile_repo.get(profile_id)
+        profile = await self.__profile_repo.get(profile_id)
         if not profile:
             raise ProfileNotFoundException(profile_id)
         
-        await self.profile_repo.delete(profile)
+        await self.__profile_repo.delete(profile)
         return True
     
     async def get_next_profile(self, user_id: int):
-        current_profile = await self.profile_repo.get_by_user_id(user_id)
+        current_profile = await self.__profile_repo.get_by_user_id(user_id)
         seen_ids = await action_cache.get_seen(user_id)
         
         if current_profile and current_profile.embedding is not None:
@@ -90,7 +90,7 @@ class ProfileService:
             
             current_profile_id = current_profile.id
             
-            profiles = await self.profile_repo.get_similar_profiles(
+            profiles = await self.__profile_repo.get_similar_profiles(
                 user_embedding=user_embedding,
                 seen_ids=seen_ids + [current_profile_id],
                 limit=10,
@@ -101,10 +101,10 @@ class ProfileService:
                 await action_cache.add_seen(user_id, profiles[0].id)
                 return profiles[0]
         
-        current_profile = await self.profile_repo.get_by_user_id(user_id)
+        current_profile = await self.__profile_repo.get_by_user_id(user_id)
         current_profile_id = current_profile.id if current_profile else None
         
-        profiles = await self.profile_repo.get_random_profiles(
+        profiles = await self.__profile_repo.get_random_profiles(
             seen_ids=seen_ids + ([current_profile_id] if current_profile_id else []),
             limit=10,
             exclude_user_id=user_id

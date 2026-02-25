@@ -147,23 +147,17 @@ async def show_next_profile(
             "Или проверь раздел «❤️ Входящие лайки»"
         )
         
+        await callback.message.answer(
+            text,
+            reply_markup=get_main_menu_keyboard(has_profile=True)
+        )
+        
         try:
-            if isinstance(callback, types.CallbackQuery):
-                await callback.message.edit_text(
-                    text,
-                    reply_markup=get_main_menu_keyboard(has_profile=True)
-                )
-            else:
-                await callback.answer(
-                    text,
-                    reply_markup=get_main_menu_keyboard(has_profile=True)
-                )
+            await callback.message.delete()
         except Exception as e:
-            logger.debug(f"Failed to edit end message, using answer: {e}")
-            await callback.answer(
-                text,
-                reply_markup=get_main_menu_keyboard(has_profile=True)
-            )
+            logger.debug(f"Failed to delete old message: {e}")
+        
+        await state.clear()
         return
     
     await state.update_data(current_profile_id=profile["id"])
