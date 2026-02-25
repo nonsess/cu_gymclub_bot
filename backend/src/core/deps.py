@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from src.services.match import MatchService
 from src.services.action import ActionService
 from src.models.user import User
 from src.db.session import get_db
@@ -26,15 +25,9 @@ async def get_action_service(
 ):
     return ActionService(db)
 
-async def get_match_service(
-    db: Annotated[AsyncSession, Depends(get_db)]
-):
-    return MatchService(db)
-
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 ProfileServiceDep = Annotated[ProfileService, Depends(get_profile_service)]
 ActionServiceDep = Annotated[ActionService, Depends(get_action_service)]
-MatchServiceDep = Annotated[MatchService, Depends(get_match_service)]
 
 async def get_current_user(
     request: Request,
