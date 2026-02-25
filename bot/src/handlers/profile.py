@@ -4,8 +4,9 @@ from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+
 from src.api.client import backend_client
-from src.keyboards.main_menu import get_main_menu_keyboard, get_reply_back_keyboard, hide_keyboard
+from src.keyboards.main_menu import get_main_menu_keyboard, get_reply_back_keyboard
 from src.keyboards.profile import (
     get_profile_menu_keyboard,
     get_edit_profile_keyboard,
@@ -15,13 +16,13 @@ from src.keyboards.profile import (
     get_experience_keyboard,
     get_progress_keyboard,
 )
+from src.utils.profile import _send_profile_album
 
 router = Router()
 logger = logging.getLogger(__name__)
 
 
 class ProfileStates(StatesGroup):
-    # Создание анкеты
     waiting_for_name = State()
     waiting_for_gender = State()
     waiting_for_age = State()
@@ -29,7 +30,6 @@ class ProfileStates(StatesGroup):
     waiting_for_about = State()
     waiting_for_photo = State()
     
-    # Редактирование анкеты
     waiting_for_new_description = State()
     waiting_for_new_gender = State()
     waiting_for_new_age = State()
@@ -77,45 +77,17 @@ async def _send_profile_view(
         f"{status_text}"
     )
     
-    is_callback = isinstance(target, types.CallbackQuery)
+    message = target.message if isinstance(target, types.CallbackQuery) else target
+    media_list = profile.get('media', [])
     
-    try:
-        if profile.get('photo_ids') and profile['photo_ids']:
-            photo = profile['photo_ids'][0]
-            if edit_mode and is_callback:
-                try:
-                    await target.message.edit_media(
-                        media=types.InputMediaPhoto(media=photo, caption=text, parse_mode="HTML"),
-                        reply_markup=get_profile_menu_keyboard()
-                    )
-                    return
-                except:
-                    pass
-            await target.answer_photo(
-                photo=photo,
-                caption=text,
-                parse_mode="HTML",
-                reply_markup=get_profile_menu_keyboard()
-            )
-        else:
-            if edit_mode and is_callback:
-                try:
-                    await target.message.edit_text(
-                        text,
-                        reply_markup=get_profile_menu_keyboard(),
-                        parse_mode="HTML"
-                    )
-                    return
-                except:
-                    pass
-            await target.answer(
-                text,
-                reply_markup=get_profile_menu_keyboard(),
-                parse_mode="HTML"
-            )
-    except Exception as e:
-        logger.error(f"Error sending profile view: {e}")
-        await target.answer("⚠️ Ошибка отображения анкеты", reply_markup=get_profile_menu_keyboard())
+    reply_markup = get_profile_menu_keyboard() if edit_mode else None
+    
+    await _send_profile_album(
+        message=message,
+        media_list=media_list,
+        caption=text,
+        reply_markup=reply_markup
+    )
 
 
 @router.callback_query(F.data == "create_profile")
@@ -281,8 +253,8 @@ async def process_about(message: types.Message, state: FSMContext):
     await message.answer(
         "✅ Описание сохранено!\n\n"
         f"📷 <b>Шаг 6 из 6</b>\n\n"
-        "Отправь фото для анкеты (<i>необязательно</i>).\n"
-        "Можно отправить одно или несколько фото.\n"
+        "Отправь фото или видео для анкеты (<i>необязательно</i>).\n"
+        "Можно отправить до 3 файлов.\n"
         "Когда закончишь — нажми «Готово».",
         parse_mode="HTML",
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
@@ -302,19 +274,35 @@ async def process_photo(message: types.Message, state: FSMContext):
     
     if message.photo:
         file_id = message.photo[-1].file_id
+        media_type = "photo"
     elif message.document and message.document.mime_type.startswith('image/'):
         file_id = message.document.file_id
+        media_type = "photo"
+    elif message.video:
+        file_id = message.video.file_id
+        media_type = "video"
     else:
-        await message.answer("⚠️ Пожалуйста, отправь фото или нажми «Готово».")
+        await message.answer("⚠️ Пожалуйста, отправь фото, видео или нажми «Готово».")
         return
     
     data = await state.get_data()
-    photo_ids = data.get("photo_ids", [])
-    photo_ids.append(file_id)
-    await state.update_data(photo_ids=photo_ids)
+    media_list = data.get("media", [])
+    
+    if len(media_list) >= 3:
+        await message.answer(
+            "⚠️ Максимум 3 медиафайла в анкете.\n"
+            "Нажми «Готово» или начни создание заново.",
+            reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="✅ Готово", callback_data="photo_done")]
+            ])
+        )
+        return
+    
+    media_list.append({"file_id": file_id, "type": media_type})
+    await state.update_data(media=media_list)
     
     await message.answer(
-        f"✅ Фото добавлено! ({len(photo_ids)} шт.)\n"
+        f"✅ {media_type} добавлено! ({len(media_list)}/3)\n"
         "Отправляй ещё или нажми «Готово».",
         reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="✅ Готово", callback_data="photo_done")]
@@ -332,7 +320,7 @@ async def finish_photo(callback: types.CallbackQuery, state: FSMContext):
         "description": data.get("description"),
         "gender": data.get("gender"),
         "age": data.get("age"),
-        "photo_ids": data.get("photo_ids", [])
+        "media": data.get("media", [])
     }
     
     logger.info(f"Creating profile for user {telegram_id}: {profile_data}")

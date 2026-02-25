@@ -3,7 +3,7 @@ from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from src.api.client import backend_client
-from src.keyboards.main_menu import get_main_menu_keyboard, hide_keyboard
+from src.keyboards.main_menu import get_main_menu_keyboard
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -65,11 +65,6 @@ async def on_start_swiping(message: types.Message, state: FSMContext):
         )
         return
     
-    await message.answer(
-        "🔍 Загружаю анкеты...",
-        reply_markup=hide_keyboard()
-    )
-    
     from src.handlers.swipe import start_swiping_callback
     await start_swiping_callback(message, telegram_id, state)
 
@@ -77,6 +72,14 @@ async def on_start_swiping(message: types.Message, state: FSMContext):
 @router.message(F.text == "👤 Моя анкета")
 async def on_my_profile(message: types.Message):
     telegram_id = message.from_user.id
+
+    profile = await backend_client.get_profile(telegram_id)
+    if not profile:
+        await message.answer(
+            "⚠️ Сначала создайте анкету!",
+            reply_markup=get_main_menu_keyboard(has_profile=False)
+        )
+        return
     
     from src.handlers.profile import show_my_profile_message
     await show_my_profile_message(message, telegram_id)
@@ -85,6 +88,14 @@ async def on_my_profile(message: types.Message):
 @router.message(F.text == "❤️ Входящие лайки")
 async def on_incoming_likes(message: types.Message, state: FSMContext):
     telegram_id = message.from_user.id
+
+    profile = await backend_client.get_profile(telegram_id)
+    if not profile:
+        await message.answer(
+            "⚠️ Сначала создайте анкету!",
+            reply_markup=get_main_menu_keyboard(has_profile=False)
+        )
+        return
         
     from src.handlers.incoming import check_incoming_from_menu
     await check_incoming_from_menu(message, telegram_id, state)

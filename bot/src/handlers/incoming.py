@@ -3,6 +3,8 @@ from aiogram import Router, F, types
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+
+from src.utils.profile import _send_profile_album
 from src.keyboards.main_menu import get_main_menu_keyboard
 from src.keyboards.swipe import get_swipe_keyboard, get_report_reason_keyboard
 from src.api.client import backend_client
@@ -13,18 +15,24 @@ logger = logging.getLogger(__name__)
 
 class IncomingStates(StatesGroup):
     viewing_incoming = State()
+    reporting = State()
 
 
 @router.callback_query(F.data == "check_incoming")
 async def check_incoming(callback: types.CallbackQuery, state: FSMContext):
     telegram_id = callback.from_user.id
-    
     await state.update_data(seen_ids=[])
-    await show_next_incoming(callback, telegram_id, state=state)
+    
+    await callback.message.answer(
+        "🔍 Загружаю входящие лайки...\n\nИспользуй кнопки внизу:",
+        reply_markup=get_swipe_keyboard()
+    )
+    
+    await show_next_incoming(callback.message, telegram_id, state)
 
 
 async def show_next_incoming(
-    callback: types.CallbackQuery | types.Message,
+    message: types.Message,
     telegram_id: int,
     state: FSMContext
 ):
@@ -35,33 +43,14 @@ async def show_next_incoming(
         profile = None
     
     if not profile:
-        text = (
-            "🎉 Вы посмотрели все входящие лайки!\n\n"
-            "Заходите позже — возможно, появятся новые ❤️"
-        )
-        
-        try:
-            if isinstance(callback, types.CallbackQuery):
-                await callback.message.edit_text(
-                    text,
-                    reply_markup=get_main_menu_keyboard(has_profile=True)
-                )
-            else:
-                await callback.answer(
-                    text,
-                    reply_markup=get_main_menu_keyboard(has_profile=True)
-                )
-        except:
-            await callback.answer(
-                text,
-                reply_markup=get_main_menu_keyboard(has_profile=True)
-            )
-        
         await state.clear()
+        await message.answer(
+            "🎉 Вы посмотрели все входящие лайки!\nЗаходите позже ❤️",
+            reply_markup=get_main_menu_keyboard(has_profile=True)
+        )
         return
 
     await state.update_data(current_incoming_id=profile["id"])
-    
     await state.set_state(IncomingStates.viewing_incoming)
     
     desc_parts = profile.get('description', '').split('\n\n🏋️ Опыт тренировок:')
@@ -75,109 +64,92 @@ async def show_next_incoming(
         f"<i>Ответьте взаимностью или пропустите</i>"
     )
     
-    if profile.get('photo_ids') and profile['photo_ids']:
-        try:
-            await callback.message.edit_media(
-                media=types.InputMediaPhoto(media=profile['photo_ids'][0], caption=text, parse_mode="HTML"),
-                reply_markup=get_swipe_keyboard()
-            )
-        except Exception:
-            await callback.message.answer(text, reply_markup=get_swipe_keyboard(), parse_mode="HTML")
-    else:
-        await callback.message.edit_text(text, reply_markup=get_swipe_keyboard(), parse_mode="HTML")
+    media_ids = profile.get('photo_ids', [])
+    await _send_profile_album(message, media_ids, text)
 
 
-@router.callback_query(F.data == "swipe_like", StateFilter(IncomingStates.viewing_incoming))
-async def incoming_like(callback: types.CallbackQuery, state: FSMContext):
-    telegram_id = callback.from_user.id
+@router.message(F.text == "👍", StateFilter(IncomingStates.viewing_incoming))
+async def incoming_like(message: types.Message, state: FSMContext):
+    telegram_id = message.from_user.id
     data = await state.get_data()
     to_user_id = data.get("current_incoming_id")
     
     if not to_user_id:
-        await callback.answer("Ошибка: анкета не найдена", show_alert=True)
+        await message.answer("⚠️ Ошибка: анкета не найдена")
         return
     
     try:
-        result = await backend_client.decide_on_incoming(telegram_id, to_user_id, "like")
+        await backend_client.decide_on_incoming(telegram_id, to_user_id, "like")
     except Exception as e:
-        logger.error(f"Error sending incoming like: {e}")
-        await callback.answer("⚠️ Ошибка", show_alert=True)
+        logger.error(f"Error: {e}")
+        await message.answer("⚠️ Ошибка")
         return
     
-    if result.get("is_match"):
-        await callback.message.edit_text(
-            "🎉 <b>Это взаимно!</b>\n\n"
-            f"Вы понравились друг другу.\n\n"
-            "Теперь вы можете написать друг другу! 💌",
-            parse_mode="HTML"
-        )
-    else:
-        await callback.answer("✅ Вы ответили взаимностью!")
-    
-    await show_next_incoming(callback, telegram_id, state)
+    await show_next_incoming(message, telegram_id, state)
 
 
-@router.callback_query(F.data == "swipe_dislike", StateFilter(IncomingStates.viewing_incoming))
-async def incoming_dislike(callback: types.CallbackQuery, state: FSMContext):
-    telegram_id = callback.from_user.id
+@router.message(F.text == "👎", StateFilter(IncomingStates.viewing_incoming))
+async def incoming_dislike(message: types.Message, state: FSMContext):
+    telegram_id = message.from_user.id
     data = await state.get_data()
     to_user_id = data.get("current_incoming_id")
     
     if to_user_id:
         try:
             await backend_client.decide_on_incoming(telegram_id, to_user_id, "dislike")
-        except Exception:
+        except:
             pass
     
-    await show_next_incoming(callback, telegram_id, state)
+    await show_next_incoming(message, telegram_id, state)
 
 
-@router.callback_query(F.data == "swipe_report", StateFilter(IncomingStates.viewing_incoming))
-async def incoming_report(callback: types.CallbackQuery, state: FSMContext):
+@router.message(F.text == "⚠️ Жалоба", StateFilter(IncomingStates.viewing_incoming))
+async def incoming_report_start(message: types.Message, state: FSMContext):
     data = await state.get_data()
     to_user_id = data.get("current_incoming_id")
     
     if not to_user_id:
-        await callback.answer("Ошибка: анкета не найдена", show_alert=True)
+        await message.answer("⚠️ Ошибка: анкета не найдена")
         return
     
-    await callback.message.edit_text(
-        "⚠️ <b>Пожаловаться на пользователя</b>\n\n"
-        "Выберите причину:",
-        reply_markup=get_report_reason_keyboard(to_user_id),
-        parse_mode="HTML"
+    await state.set_state(IncomingStates.reporting)
+    await message.answer(
+        "Выберите причину жалобы:",
+        reply_markup=get_report_reason_keyboard(to_user_id)
     )
 
 
-@router.callback_query(F.data.startswith("report_reason_"), StateFilter(IncomingStates.viewing_incoming))
+@router.callback_query(F.data.startswith("report_reason_"), StateFilter(IncomingStates.reporting))
 async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
     reason = parts[2]
-    to_user_id = parts[3]
+    to_user_id = int(parts[3])
     telegram_id = callback.from_user.id
-    data = await state.get_data()
     
     reason_labels = {"spam": "Спам/реклама", "fake": "Фейковая анкета", "other": "Другое"}
     
     try:
         await backend_client.send_action(
-            telegram_id, 
-            int(to_user_id), 
-            "report", 
-            report_reason=reason_labels.get(reason, reason)
+            telegram_id, to_user_id, "report", report_reason=reason_labels.get(reason, reason)
         )
     except Exception as e:
-        logger.error(f"Error sending report: {e}")
+        logger.error(f"Error: {e}")
         await callback.answer("⚠️ Ошибка", show_alert=True)
         return
     
-    await callback.message.edit_text(
-        "✅ <b>Жалоба отправлена</b>\n\n"
-        "Мы проверим эту анкету. Спасибо!",
-        parse_mode="HTML"
-    )
+    await callback.message.answer("✅ Жалоба отправлена!")
+    await state.clear()
     
-    await show_next_incoming(callback, telegram_id, state)
+    telegram_id = callback.from_user.id
+    await show_next_incoming(callback.message, telegram_id, state)
+
+
+@router.callback_query(F.data == "cancel_report", StateFilter(IncomingStates.reporting))
+async def cancel_report(callback: types.CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.answer("✅ Отменено.")
+    await show_next_incoming(callback.message, callback.from_user.id, state)
+
 
 async def check_incoming_from_menu(
     message: types.Message,
@@ -186,4 +158,9 @@ async def check_incoming_from_menu(
 ):
     await state.clear()
     await state.update_data(seen_ids=[])
-    await show_next_incoming(message, telegram_id, state=state)
+    
+    await message.answer(
+        "🔍 Загружаю входящие лайки...\n\nИспользуй кнопки внизу:",
+        reply_markup=get_swipe_keyboard()
+    )
+    await show_next_incoming(message, telegram_id, state)
