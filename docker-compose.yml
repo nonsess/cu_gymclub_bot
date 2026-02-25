@@ -1,8 +1,6 @@
 services:
   db:
     image: pgvector/pgvector:pg16
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -10,12 +8,13 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:latest
+
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"  # ✅ Проброс порта для тестов
     env_file:
       - .env
     volumes:
