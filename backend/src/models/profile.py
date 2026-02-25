@@ -27,7 +27,7 @@ class Profile(BaseModel):
     description: Mapped[str] = mapped_column(String(1000), nullable=False)
     gender: Mapped[GenderEnum | None] = mapped_column(ENUM(GenderEnum, name="gender_enum", create_type=True), nullable=True)
     age: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    photo_ids: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    media: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True, default=list)
     embedding: Mapped[list | None] = mapped_column(Vector(384), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     

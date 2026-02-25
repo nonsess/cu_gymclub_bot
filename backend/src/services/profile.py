@@ -39,7 +39,7 @@ class ProfileService:
             description=profile_data.description,
             gender=profile_data.gender.value.lower(),
             age=profile_data.age,
-            photo_ids=profile_data.photo_ids,
+            media=[m.model_dump() for m in profile_data.media],
             embedding=embedding,
             is_active=True
         )
@@ -61,6 +61,12 @@ class ProfileService:
                 update_data['gender'] = update_data['gender'].value.lower()
             elif isinstance(update_data['gender'], str):
                 update_data['gender'] = update_data['gender'].lower()
+        
+        if 'media' in update_data and update_data['media'] is not None:
+            update_data['media'] = [
+                m.model_dump() if hasattr(m, 'model_dump') else m 
+                for m in update_data['media']
+            ]
         
         if 'description' in update_data and update_data['description']:
             update_data['embedding'] = await embedding_service.generate_embedding(

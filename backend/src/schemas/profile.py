@@ -10,12 +10,17 @@ class GenderEnum(str, Enum):
     OTHER = "other"
 
 
+class Media(BaseModel):
+    type: str
+    file_id: str
+
+
 class ProfileCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Имя")
     description: str = Field(..., min_length=10, max_length=1000, description="Описание анкеты")
     gender: GenderEnum = Field(..., description="Пол: male, female, other")
     age: Optional[int] = Field(None, ge=16, le=100, description="Возраст")
-    photo_ids: Optional[List[str]] = Field(default_factory=list, description="Telegram file_id фотографий")
+    media: List[Media]
     
     model_config = ConfigDict(
     json_schema_extra={
@@ -32,7 +37,7 @@ class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100, description="Имя")
     description: Optional[str] = Field(None, min_length=10, max_length=1000)
     age: Optional[int] = Field(None, ge=16, le=100)
-    photo_ids: Optional[List[str]] = None
+    media: Optional[List[Media]] = None
     is_active: Optional[bool] = None
     
     model_config = ConfigDict(json_schema_extra={
@@ -51,7 +56,7 @@ class ProfileResponse(BaseModel):
     description: str
     gender: str
     age: Optional[int]
-    photo_ids: Optional[List[str]]
+    media: Optional[List[Media]]
     is_active: bool
     created_at: datetime
     updated_at: datetime
