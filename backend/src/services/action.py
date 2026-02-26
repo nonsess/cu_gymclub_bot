@@ -66,7 +66,6 @@ class ActionService:
         
         await action_cache.add_seen(to_user_id, from_user_id)
 
-        is_match = False
         if action_type == ActionTypeEnum.like:
             is_match = await self.__action_repo.check_mutual_like(from_user_id, to_user_id)
             
@@ -75,9 +74,6 @@ class ActionService:
                 await self._send_match_notification(from_user_id, to_user_id)
             else:
                 await self._send_like_notification(from_user_id, to_user_id)
-
-        
-        return {"is_match": is_match}
 
     async def decide_on_incoming(
         self, 
@@ -95,16 +91,10 @@ class ActionService:
         )
         
         await action_cache.add_seen(viewer_user_id, target_user_id)
-
-        is_match = False
         
         if action_type == ActionTypeEnum.like:
-            is_match = True
             await self.__match_repo.create_match(viewer_user_id, target_user_id)
-
             await self._send_match_notification(viewer_user_id, target_user_id)
-        
-        return {"is_match": is_match}
     
     async def get_next_incoming_like(self, user_id: int) -> dict:
         incoming_actions = await self.__action_repo.get_incoming_likes(user_id)

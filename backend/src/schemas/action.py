@@ -19,12 +19,3 @@ class ActionCreate(BaseModel):
             "report_reason": None
         }
     })
-
-class ActionResponse(BaseModel):
-    is_match: bool = Field(..., description="True, если произошёл взаимный лайк (матч)")
-    
-    model_config = ConfigDict(json_schema_extra={
-        "example": {
-            "is_match": True
-        }
-    })
