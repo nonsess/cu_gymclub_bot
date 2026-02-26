@@ -45,13 +45,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await backend_client.register_user(telegram_id, username, first_name)
     except Exception as e:
         logger.error(f"Error registering user: {e}")
-        await message.answer("⚠️ Ошибка регистрации. Попробуйте позже.")
+        await message.answer("⚠️ Ошибка, попробуйте позже.")
         return
     
     await state.clear()
     
     await show_main_menu(message, telegram_id)
-
 
 @router.message(F.text == "🔍 Начать свайпать")
 async def on_start_swiping(message: types.Message, state: FSMContext):
@@ -107,9 +106,9 @@ async def on_back(message: types.Message, state: FSMContext):
 
 @router.message(F.text == "📝 Создать анкету")
 async def on_create_profile(message: types.Message, state: FSMContext):
-    telegram_id = message.from_user.id
+    first_name = message.from_user.first_name
     
     await state.clear()
     
     from src.handlers.profile import start_create_profile_from_menu
-    await start_create_profile_from_menu(message, telegram_id, state)
+    await start_create_profile_from_menu(message, first_name, state)

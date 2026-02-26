@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 
 def get_main_menu_keyboard(has_profile: bool = False) -> ReplyKeyboardMarkup:
@@ -24,14 +24,12 @@ def get_main_menu_keyboard(has_profile: bool = False) -> ReplyKeyboardMarkup:
         input_field_placeholder="Выберите действие 👇"
     )
 
-
-def get_reply_back_keyboard() -> ReplyKeyboardMarkup:
+def return_my_profile_active() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🔙 Назад")]],
+        keyboard=[
+            [KeyboardButton(text="Вернуться назад")],
+        ],
         resize_keyboard=True,
-        one_time_keyboard=True
+        one_time_keyboard=False,
+        input_field_placeholder="Возвращайся 👇"
     )
-
-
-def hide_keyboard() -> ReplyKeyboardRemove:
-    return ReplyKeyboardRemove(remove_keyboard=True)

@@ -24,7 +24,7 @@ async def check_incoming(callback: types.CallbackQuery, state: FSMContext):
     await state.update_data(seen_ids=[])
     
     await callback.message.answer(
-        "🔍 Загружаю входящие лайки...\n\nИспользуй кнопки внизу:",
+        "🔍 Загружаю входящие лайки...",
         reply_markup=get_swipe_keyboard()
     )
     
@@ -50,7 +50,7 @@ async def show_next_incoming(
         )
         return
 
-    await state.update_data(current_incoming_id=profile["id"])
+    await state.update_data(current_incoming_id=profile["user_id"])
     await state.set_state(IncomingStates.viewing_incoming)
     
     desc_parts = profile.get('description', '').split('\n\n🏋️ Опыт тренировок:')

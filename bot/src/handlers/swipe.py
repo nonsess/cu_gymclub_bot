@@ -46,8 +46,7 @@ async def start_swiping(message: types.Message, state: FSMContext):
         return
     
     await message.answer(
-        "🔍 Загружаю анкеты...\n\n"
-        "Используй кнопки внизу для действий:",
+        "🔍 Загружаю анкеты...",
         reply_markup=get_swipe_keyboard()
     )
     
@@ -74,7 +73,7 @@ async def show_next_profile(
         )
         return
     
-    await state.update_data(current_profile_id=profile["id"])
+    await state.update_data(current_profile_id=profile["user_id"])
     await state.set_state(SwipeStates.viewing_profile)
     
     text = _format_profile_text(profile)
@@ -164,7 +163,11 @@ async def _process_swipe_action(
         return
     
     try:
-        await backend_client.send_action(telegram_id, to_user_id, action_type)
+        await backend_client.send_action(
+            telegram_id=telegram_id,
+            to_user_id=to_user_id,
+            action_type=action_type
+        )
     except Exception as e:
         logger.error(f"Error sending {action_type}: {e}")
         await message.answer("⚠️ Ошибка сети")
