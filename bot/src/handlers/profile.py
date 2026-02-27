@@ -97,6 +97,7 @@ async def process_gender(message: types.Message, state: FSMContext):
         "Сколько тебе лет?\n\n"
         "<i>Введи число от 16 до 100</i>",
         parse_mode="HTML",
+        reply_markup=hide_keyboard()
     )
     await state.set_state(ProfileStates.waiting_for_age)
 
@@ -160,6 +161,7 @@ async def process_experience(message: types.Message, state: FSMContext):
         "<i>Качалка в ЦУ, пн-ср-пт, 15.00-17.00, качаю только бицуху</i>\n\n"
         "⚠️ <b>Указывай большой промежуток времени — так бот лучше подберёт партнёра!</b>",
         parse_mode="HTML",
+        reply_markup=hide_keyboard()
     )
     await state.set_state(ProfileStates.waiting_for_about)
 

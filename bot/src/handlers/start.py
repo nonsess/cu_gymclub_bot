@@ -18,7 +18,7 @@ async def show_main_menu(message: types.Message, telegram_id: int):
     if has_profile:
         text = (
             f"👋 Привет, {first_name}!\n\n"
-            f"У вас уже есть анкета. Что делаем?"
+            f"У тебя уже есть анкета. Что делаем?"
         )
     else:
         text = (
@@ -50,7 +50,7 @@ async def on_start_swiping(message: types.Message, state: FSMContext):
     profile = await backend_client.get_profile(telegram_id)
     if not profile:
         await message.answer(
-            "⚠️ Сначала создайте анкету!",
+            "⚠️ Сначала создай анкету!",
             reply_markup=get_main_menu_keyboard(has_profile=False)
         )
         return
@@ -66,7 +66,7 @@ async def on_my_profile(message: types.Message):
     profile = await backend_client.get_profile(telegram_id)
     if not profile:
         await message.answer(
-            "⚠️ Сначала создайте анкету!",
+            "⚠️ Сначала создай анкету!",
             reply_markup=get_main_menu_keyboard(has_profile=False)
         )
         return
@@ -82,7 +82,7 @@ async def on_incoming_likes(message: types.Message, state: FSMContext):
     profile = await backend_client.get_profile(telegram_id)
     if not profile:
         await message.answer(
-            "⚠️ Сначала создайте анкету!",
+            "⚠️ Сначала создай анкету!",
             reply_markup=get_main_menu_keyboard(has_profile=False)
         )
         return
