@@ -7,7 +7,7 @@ from src.repositories.match import MatchRepository
 from src.models.action import ActionTypeEnum
 from src.core.exceptions.action import SelfActionException
 from src.services.telegram import telegram_service
-from src.services.redis import action_cache
+from backend.src.services.cache import action_cache
 
 class ActionService:
     def __init__(self, session: AsyncSession):

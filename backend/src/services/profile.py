@@ -8,7 +8,7 @@ from src.core.exceptions.profile import (
     NoMoreProfilesException,
     ProfileAlreadyExistsException
 )
-from src.services.redis import action_cache
+from backend.src.services.cache import action_cache
 
 class ProfileService:
     def __init__(self, session: AsyncSession):

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from src.scripts.seed_data import seed_on_startup
-from src.services.redis import action_cache
+from backend.src.services.cache import action_cache
 from src.core.config import settings
 
 @asynccontextmanager
