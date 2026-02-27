@@ -44,7 +44,6 @@ class ProfileService:
             is_active=True
         )
 
-
     async def update_profile(
         self,
         user_id: int,
@@ -85,7 +84,7 @@ class ProfileService:
     
     async def get_next_profile(self, user_id: int):
         current_profile = await self.__profile_repo.get_by_user_id(user_id)
-        seen_ids = await action_cache.get_seen(user_id)
+        seen_user_ids = await action_cache.get_seen_user_ids(user_id)
         
         if current_profile and current_profile.embedding is not None:
             user_embedding = current_profile.embedding
@@ -93,31 +92,22 @@ class ProfileService:
                 user_embedding = user_embedding.tolist()
             elif not isinstance(user_embedding, list):
                 user_embedding = list(user_embedding)
-            
-            current_profile_id = current_profile.id
-            
+                        
             profiles = await self.__profile_repo.get_similar_profiles(
                 user_embedding=user_embedding,
-                seen_ids=seen_ids + [current_profile_id],
-                limit=10,
-                exclude_user_id=user_id
+                seen_user_ids=seen_user_ids + [user_id],
+                limit=10
             )
             
             if profiles:
-                await action_cache.add_seen(user_id, profiles[0].id)
                 return profiles[0]
-        
-        current_profile = await self.__profile_repo.get_by_user_id(user_id)
-        current_profile_id = current_profile.id if current_profile else None
-        
+                
         profiles = await self.__profile_repo.get_random_profiles(
-            seen_ids=seen_ids + ([current_profile_id] if current_profile_id else []),
+            seen_user_ids=seen_user_ids + [user_id],
             limit=10,
-            exclude_user_id=user_id
         )
         
         if profiles:
-            await action_cache.add_seen(user_id, profiles[0].id)
             return profiles[0]
         
         raise NoMoreProfilesException()

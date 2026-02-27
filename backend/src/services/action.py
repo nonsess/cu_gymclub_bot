@@ -64,7 +64,8 @@ class ActionService:
             report_reason=report_reason if action_type == ActionTypeEnum.report else None
         )
         
-        await action_cache.add_seen(to_user_id, from_user_id)
+        await action_cache.add_seen_user_id(from_user_id, to_user_id)
+        await action_cache.add_seen_user_id(to_user_id, from_user_id)
 
         if action_type == ActionTypeEnum.like:
             is_match = await self.__action_repo.check_mutual_like(from_user_id, to_user_id)
@@ -90,7 +91,7 @@ class ActionService:
             action_type=action_type
         )
         
-        await action_cache.add_seen(viewer_user_id, target_user_id)
+        await action_cache.add_seen_user_id(viewer_user_id, target_user_id)
         
         if action_type == ActionTypeEnum.like:
             await self.__match_repo.create_match(viewer_user_id, target_user_id)

@@ -10,12 +10,12 @@ class ActionCache:
     def _key(self, user_id: int) -> str:
         return f"swipe:seen:{user_id}"
     
-    async def add_seen(self, user_id: int, profile_id: int):
-        key = self._key(user_id)
-        await self.__redis.sadd(key, str(profile_id))
+    async def add_seen_user_id(self, from_user_id: int, to_user_id: int):
+        key = self._key(from_user_id)
+        await self.__redis.sadd(key, str(to_user_id))
         await self.__redis.expire(key, self.__ttl)
     
-    async def get_seen(self, user_id: int) -> List[int]:
+    async def get_seen_user_ids(self, user_id: int) -> List[int]:
         key = self._key(user_id)
         seen = await self.__redis.smembers(key)
         return [int(x) for x in seen] if seen else []

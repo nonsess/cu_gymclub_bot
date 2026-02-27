@@ -17,18 +17,14 @@ class ProfileRepository(BaseRepository[Profile]):
     async def get_similar_profiles(
         self, 
         user_embedding: List[float], 
-        seen_ids: List[int], 
+        seen_user_ids: List[int], 
         limit: int = 10,
-        exclude_user_id: int | None = None
     ) -> List[Profile]:
         query = (
             select(Profile)
-            .where(Profile.id.notin_(seen_ids))
+            .where(Profile.user_id.notin_(seen_user_ids))
             .where(Profile.is_active == True)
         )
-        
-        if exclude_user_id:
-            query = query.where(Profile.user_id != exclude_user_id)
         
         query = (
             query
@@ -40,20 +36,16 @@ class ProfileRepository(BaseRepository[Profile]):
 
     async def get_random_profiles(
         self, 
-        seen_ids: List[int], 
+        seen_user_ids: List[int], 
         limit: int = 10,
-        exclude_user_id: int | None = None
     ) -> List[Profile]:
         from sqlalchemy import func
         query = (
             select(Profile)
-            .where(Profile.id.notin_(seen_ids))
+            .where(Profile.user_id.notin_(seen_user_ids))
             .where(Profile.is_active == True)
         )
-        
-        if exclude_user_id:
-            query = query.where(Profile.user_id != exclude_user_id)
-        
+                
         query = (
             query
             .order_by(func.random())
