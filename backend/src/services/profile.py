@@ -124,7 +124,7 @@ class ProfileService:
                 for ind, p in enumerate(profiles):
                     if ind != 0: await cache.cache_profile(self._profile_to_dict(p))
 
-                profile_ids = [p.id for p in profiles]
+                profile_ids = [p.id for p in profiles[1:]]
                 await cache.fill_queue(user_id, profile_ids)
 
                 return profiles[0]
@@ -138,7 +138,7 @@ class ProfileService:
             for ind, p in enumerate(profiles):
                 if ind != 0: await cache.cache_profile(self._profile_to_dict(p))
 
-            profile_ids = [p.id for p in profiles]
+            profile_ids = [p.id for p in profiles[1:]]
             await cache.fill_queue(user_id, profile_ids)
 
             return profiles[0]
