@@ -61,14 +61,9 @@ async def process_name(message: types.Message, state: FSMContext):
         return
     
     await state.update_data(name=name)
-    
-    await message.answer(
-        f"✅ Привет, <b>{name}</b>!",
-        parse_mode="HTML",
-        reply_markup=hide_keyboard()
-    )
 
     await message.answer(
+        f"✅ Привет, <b>{name}</b>!\n\n"
         f"👤 <b>Шаг 2 из 6</b>\n\n"
         "Выбери свой пол:",
         parse_mode="HTML",
@@ -94,8 +89,7 @@ async def process_gender(message: types.Message, state: FSMContext):
     await message.answer(
         "✅ Пол сохранён!\n\n"
         f"🎂 <b>Шаг 3 из 6</b>\n\n"
-        "Сколько тебе лет?\n\n"
-        "<i>Введи число от 16 до 100</i>",
+        "Сколько тебе лет?\n\n",
         parse_mode="HTML",
         reply_markup=hide_keyboard()
     )
