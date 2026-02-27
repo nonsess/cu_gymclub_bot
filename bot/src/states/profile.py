@@ -15,4 +15,4 @@ class ProfileStates(StatesGroup):
     waiting_for_new_experience = State()
     waiting_for_new_about = State()
     waiting_for_new_photos = State()
-    waiting_for_delete_confirm = State()
+    waiting_for_hide_confirm = State()

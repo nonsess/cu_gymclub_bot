@@ -6,7 +6,6 @@ from src.api.client import backend_client
 from src.keyboards.main_menu import get_main_menu_keyboard
 from src.keyboards.profile import (
     get_profile_actions_keyboard,
-    get_inline_back_keyboard,
     get_gender_keyboard,
     get_experience_keyboard,
     get_name_keyboard,
@@ -14,28 +13,11 @@ from src.keyboards.profile import (
     get_cancel_keyboard,
     hide_keyboard
 )
-from src.utils.profile import _send_profile_album
+from src.utils.profile import _format_profile_text, _send_profile_album
 from src.states.profile import ProfileStates
 
 router = Router()
 logger = logging.getLogger(__name__)
-
-def _format_profile_text(profile: dict) -> str:
-    gender_text = "👨 Парень" if profile['gender'] == 'male' else "👩 Девушка"
-    status_text = "✅ Активна" if profile['is_active'] else "⏸ Скрыта"
-    
-    description = profile['description']
-    name = profile['name']
-    age = profile['age']
-    
-    text = (
-        f"👤 <b>{name}</b>, {age} лет\n\n"
-        f"{description}\n\n"
-        f"{gender_text}\n"
-        f"{status_text}"
-    )
-    return text
-
 
 @router.callback_query(F.data == "create_profile")
 async def start_create_profile(callback: types.CallbackQuery, state: FSMContext):
@@ -68,13 +50,7 @@ async def start_create_profile_from_menu(
 
 
 @router.message(ProfileStates.waiting_for_name)
-async def process_name(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Отмена":
-        await state.clear()
-        from src.handlers.start import show_main_menu
-        await show_main_menu(message, message.from_user.id)
-        return
-    
+async def process_name(message: types.Message, state: FSMContext):    
     name = message.text.strip()
     
     if len(name) < 2:
@@ -102,13 +78,7 @@ async def process_name(message: types.Message, state: FSMContext):
 
 
 @router.message(ProfileStates.waiting_for_gender, F.text)
-async def process_gender(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Отмена":
-        await state.clear()
-        from src.handlers.start import show_main_menu
-        await show_main_menu(message, message.from_user.id)
-        return
-    
+async def process_gender(message: types.Message, state: FSMContext):    
     gender_map = {
         "👨 Парень": "male",
         "👩 Девушка": "female"
@@ -127,23 +97,16 @@ async def process_gender(message: types.Message, state: FSMContext):
         "Сколько тебе лет?\n\n"
         "<i>Введи число от 16 до 100</i>",
         parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
     )
     await state.set_state(ProfileStates.waiting_for_age)
 
 
 @router.message(ProfileStates.waiting_for_age)
-async def process_age(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Отмена":
-        await state.clear()
-        from src.handlers.start import show_main_menu
-        await show_main_menu(message, message.from_user.id)
-        return
-    
+async def process_age(message: types.Message, state: FSMContext):    
     try:
         age = int(message.text.strip())
         if age < 16 or age > 100:
-            await message.answer("⚠️ Возраст должен быть от 16 до 100 лет.\nПопробуй ещё раз:")
+            await message.answer("Введенный возраст неккоректный\nПопробуй ещё раз")
             return
         
         await state.update_data(age=age)
@@ -156,19 +119,12 @@ async def process_age(message: types.Message, state: FSMContext):
             reply_markup=get_experience_keyboard()
         )
         await state.set_state(ProfileStates.waiting_for_experience)
-        
     except ValueError:
-        await message.answer("⚠️ Это не число. Введите возраст цифрами:")
+        await message.answer("Это не число. Введите возраст цифрами")
 
 
 @router.message(ProfileStates.waiting_for_experience, F.text)
-async def process_experience(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Отмена":
-        await state.clear()
-        from src.handlers.start import show_main_menu
-        await show_main_menu(message, message.from_user.id)
-        return
-    
+async def process_experience(message: types.Message, state: FSMContext):    
     exp_map = {
         "🔰 Я новичок": "beginner",
         "💪 1-2 года": "1_2",
@@ -204,23 +160,16 @@ async def process_experience(message: types.Message, state: FSMContext):
         "<i>Качалка в ЦУ, пн-ср-пт, 15.00-17.00, качаю только бицуху</i>\n\n"
         "⚠️ <b>Указывай большой промежуток времени — так бот лучше подберёт партнёра!</b>",
         parse_mode="HTML",
-        reply_markup=get_cancel_keyboard()
     )
     await state.set_state(ProfileStates.waiting_for_about)
 
 
 @router.message(ProfileStates.waiting_for_about)
-async def process_about(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Отмена":
-        await state.clear()
-        from src.handlers.start import show_main_menu
-        await show_main_menu(message, message.from_user.id)
-        return
-    
+async def process_about(message: types.Message, state: FSMContext):    
     about = message.text.strip()
     
     if len(about) < 10:
-        await message.answer("⚠️ Описание слишком короткое (минимум 10 символов).\nРасскажи подробнее:")
+        await message.answer("Описание слишком короткое (мин. 10 символов).\nРасскажи о себе подробнее")
         return
     
     data = await state.get_data()
@@ -228,7 +177,7 @@ async def process_about(message: types.Message, state: FSMContext):
     full_description = f"{about}\n\n🏋️ Опыт тренировок: {experience}"
     
     if len(full_description) > 1000:
-        await message.answer(f"⚠️ Описание слишком длинное ({len(full_description)} символов, макс. 1000).\nСократи немного:")
+        await message.answer(f"Описание слишком длинное ({len(full_description)} символов, макс. 1000).\nСократи немного:")
         return
     
     await state.update_data(description=full_description)
@@ -246,13 +195,7 @@ async def process_about(message: types.Message, state: FSMContext):
 
 
 @router.message(ProfileStates.waiting_for_photo)
-async def process_photo(message: types.Message, state: FSMContext):
-    if message.text == "🔙 Отмена":
-        await state.clear()
-        from src.handlers.start import show_main_menu
-        await show_main_menu(message, message.from_user.id)
-        return
-    
+async def process_photo(message: types.Message, state: FSMContext):    
     if message.text == "✅ Завершить загрузку фото":
         await finish_photo_upload(message, state)
         return
@@ -267,7 +210,7 @@ async def process_photo(message: types.Message, state: FSMContext):
         file_id = message.video.file_id
         media_type = "video"
     else:
-        await message.answer("⚠️ Пожалуйста, отправь фото, видео или нажми «✅ Завершить загрузку фото».")
+        await message.answer("Пожалуйста, отправь фото, видео или нажми «✅ Завершить загрузку фото».")
         return
     
     data = await state.get_data()
@@ -308,16 +251,7 @@ async def finish_photo_upload(message: types.Message, state: FSMContext):
     
     logger.info(f"Creating profile for user {telegram_id}")
     
-    try:
-        await backend_client.create_profile(telegram_id, profile_data)
-    except Exception as e:
-        logger.error(f"Error creating profile: {e}")
-        await message.answer(
-            "⚠️ Ошибка при создании анкеты. Попробуй позже.",
-            reply_markup=get_inline_back_keyboard("back_to_start")
-        )
-        await state.clear()
-        return
+    await backend_client.create_profile(telegram_id, profile_data)
     
     await state.clear()
     
@@ -333,12 +267,7 @@ async def finish_photo_upload(message: types.Message, state: FSMContext):
 @router.callback_query(F.data == "my_profile")
 async def show_my_profile(callback: types.CallbackQuery):
     telegram_id = callback.from_user.id
-    try:
-        profile = await backend_client.get_profile(telegram_id)
-    except Exception as e:
-        logger.error(f"Error getting profile: {e}")
-        await callback.answer("⚠️ Ошибка загрузки анкеты", show_alert=True)
-        return
+    profile = await backend_client.get_profile(telegram_id)
     
     if not profile:
         await callback.message.edit_text(
@@ -352,7 +281,6 @@ async def show_my_profile(callback: types.CallbackQuery):
         parse_mode="HTML",
         reply_markup=get_profile_actions_keyboard()
     )
-
     
     await _send_profile_album(
         message=callback.message,
@@ -363,12 +291,7 @@ async def show_my_profile(callback: types.CallbackQuery):
     
 
 async def show_my_profile_message(message: types.Message, telegram_id: int):
-    try:
-        profile = await backend_client.get_profile(telegram_id)
-    except Exception as e:
-        logger.error(f"Error getting profile: {e}")
-        await message.answer("⚠️ Ошибка загрузки анкеты", reply_markup=get_main_menu_keyboard(has_profile=True))
-        return
+    profile = await backend_client.get_profile(telegram_id)
     
     if not profile:
         await message.answer("У вас нет анкеты. Создайте её!", reply_markup=get_main_menu_keyboard(has_profile=False))
@@ -415,8 +338,3 @@ async def back_to_start(callback: types.CallbackQuery, state: FSMContext):
         "🏠 Главное меню",
         reply_markup=get_main_menu_keyboard(has_profile=bool(profile))
     )
-    
-    try:
-        await callback.message.delete()
-    except:
-        pass

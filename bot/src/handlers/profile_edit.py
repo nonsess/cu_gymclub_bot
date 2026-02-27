@@ -2,6 +2,7 @@ import logging
 from aiogram import F, types, Router
 from aiogram.fsm.context import FSMContext
 
+from src.utils.profile import _extract_description, _extract_experience, _get_experience_key
 from src.api.client import backend_client
 from src.keyboards.main_menu import get_main_menu_keyboard, return_my_profile_active
 from src.keyboards.profile import (
@@ -19,38 +20,6 @@ from src.states.profile import ProfileStates
 
 router = Router()
 logger = logging.getLogger(__name__)
-
-
-def _extract_description(full_description: str) -> str:
-    if '🏋️ Опыт тренировок:' in full_description:
-        return full_description.split('\n\n🏋️ Опыт тренировок:')[0]
-    return full_description
-
-
-def _extract_experience(description: str) -> str:
-    if '🏋️ Опыт тренировок:' in description:
-        return description.split('🏋️ Опыт тренировок:')[-1].strip()
-    return "Не указан"
-
-
-def _get_experience_key(full_description: str) -> str:
-    if '🏋️ Опыт тренировок:' not in full_description:
-        return None
-    
-    exp_text = full_description.split('🏋️ Опыт тренировок:')[-1].strip()
-    
-    exp_mapping = {
-        "Я новичок": "beginner",
-        "1-2 года": "1_2",
-        "2-3 года": "2_3",
-        "3+ лет": "3_plus"
-    }
-    
-    for text, key in exp_mapping.items():
-        if text in exp_text:
-            return key
-    return None
-
 
 @router.message(F.text == "✏️ Редактировать анкету")
 async def start_edit_from_keyboard(message: types.Message, state: FSMContext):
@@ -76,7 +45,6 @@ async def start_edit_from_keyboard(message: types.Message, state: FSMContext):
     )
     await state.set_state(ProfileStates.editing_profile)
 
-
 @router.message(ProfileStates.editing_profile, F.text.in_(["📷 Загрузить новые фото", "💾 Оставить текущие фото"]))
 async def handle_photo_actions(message: types.Message, state: FSMContext):
     if message.text == "📷 Загрузить новые фото":
@@ -84,10 +52,8 @@ async def handle_photo_actions(message: types.Message, state: FSMContext):
     elif message.text == "💾 Оставить текущие фото":
         await keep_current_photos(message, state)
 
-
 @router.message(ProfileStates.editing_profile, F.text)
 async def process_edit_choice(message: types.Message, state: FSMContext):
-    """Общий хендлер для остальных полей редактирования"""
     choice = message.text
     data = await state.get_data()
     profile = data.get('original_profile', {})
@@ -153,7 +119,6 @@ async def process_edit_choice(message: types.Message, state: FSMContext):
     else:
         await message.answer("❌ Непонятный выбор. Используй кнопки ниже.")
 
-
 @router.message(ProfileStates.waiting_for_new_name)
 async def process_new_name(message: types.Message, state: FSMContext):
     if message.text == "🔙 Отмена":
@@ -166,29 +131,23 @@ async def process_new_name(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Имя слишком короткое. Введи корректное имя:")
         return
     if len(name) > 50:
-        await message.answer("⚠️ Имя слишком длинное (максимум 50 символов).")
+        await message.answer("⚠️ Имя слишком длинное (макс. 50 символов).")
         return
     
     telegram_id = message.from_user.id
-    try:
-        await backend_client.update_profile(telegram_id, {"name": name})
-        
-        data = await state.get_data()
-        profile = data.get('original_profile', {})
-        profile['name'] = name
-        await state.update_data(original_profile=profile)
-        
-        await message.answer(
-            f"✅ Имя изменено на <b>{name}</b>!",
-            parse_mode="HTML",
-            reply_markup=hide_keyboard()
-        )
-        await return_to_edit_menu(message, state)
-        
-    except Exception as e:
-        logger.error(f"Error updating name: {e}")
-        await message.answer("❌ Ошибка при обновлении имени. Попробуй позже.")
-
+    await backend_client.update_profile(telegram_id, {"name": name})
+    
+    data = await state.get_data()
+    profile = data.get('original_profile', {})
+    profile['name'] = name
+    await state.update_data(original_profile=profile)
+    
+    await message.answer(
+        f"✅ Имя изменено на <b>{name}</b>!",
+        parse_mode="HTML",
+        reply_markup=hide_keyboard()
+    )
+    await return_to_edit_menu(message, state)
 
 @router.message(ProfileStates.waiting_for_new_age)
 async def process_new_age(message: types.Message, state: FSMContext):
@@ -199,7 +158,7 @@ async def process_new_age(message: types.Message, state: FSMContext):
     try:
         age = int(message.text.strip())
         if age < 16 or age > 100:
-            await message.answer("⚠️ Возраст должен быть от 16 до 100 лет.")
+            await message.answer("Введенный возраст неккоректный\nПопробуй ещё раз")
             return
         
         telegram_id = message.from_user.id
@@ -217,8 +176,7 @@ async def process_new_age(message: types.Message, state: FSMContext):
         await return_to_edit_menu(message, state)
         
     except ValueError:
-        await message.answer("⚠️ Это не число. Введите возраст цифрами:")
-
+        await message.answer("Это не число. Введите возраст цифрами")
 
 @router.message(ProfileStates.waiting_for_new_gender, F.text)
 async def process_new_gender(message: types.Message, state: FSMContext):
@@ -244,25 +202,19 @@ async def process_new_gender(message: types.Message, state: FSMContext):
     gender = gender_map[message.text]
     
     telegram_id = message.from_user.id
-    try:
-        await backend_client.update_profile(telegram_id, {"gender": gender})
-        
-        data = await state.get_data()
-        profile = data.get('original_profile', {})
-        profile['gender'] = gender
-        await state.update_data(original_profile=profile)
-        
-        gender_text = "👨 Парень" if gender == "male" else "👩 Девушка"
-        await message.answer(
-            f"✅ Пол изменён на {gender_text}!",
-            reply_markup=hide_keyboard()
-        )
-        await return_to_edit_menu(message, state)
-        
-    except Exception as e:
-        logger.error(f"Error updating gender: {e}")
-        await message.answer("❌ Ошибка при обновлении пола. Попробуй позже.")
-
+    await backend_client.update_profile(telegram_id, {"gender": gender})
+    
+    data = await state.get_data()
+    profile = data.get('original_profile', {})
+    profile['gender'] = gender
+    await state.update_data(original_profile=profile)
+    
+    gender_text = "👨 Парень" if gender == "male" else "👩 Девушка"
+    await message.answer(
+        f"✅ Пол изменён на {gender_text}!",
+        reply_markup=hide_keyboard()
+    )
+    await return_to_edit_menu(message, state)
 
 @router.message(ProfileStates.waiting_for_new_experience, F.text)
 async def process_new_experience(message: types.Message, state: FSMContext):
@@ -303,23 +255,17 @@ async def process_new_experience(message: types.Message, state: FSMContext):
     new_description = f"{base_description}\n\n🏋️ Опыт тренировок: {experience_text}"
     
     telegram_id = message.from_user.id
-    try:
-        await backend_client.update_profile(telegram_id, {"description": new_description})
-        
-        profile['description'] = new_description
-        await state.update_data(original_profile=profile)
-        
-        await message.answer(
-            f"✅ Опыт изменён на: <b>{experience_text}</b>!",
-            parse_mode="HTML",
-            reply_markup=hide_keyboard()
-        )
-        await return_to_edit_menu(message, state)
-        
-    except Exception as e:
-        logger.error(f"Error updating experience: {e}")
-        await message.answer("❌ Ошибка при обновлении опыта. Попробуй позже.")
-
+    await backend_client.update_profile(telegram_id, {"description": new_description})
+    
+    profile['description'] = new_description
+    await state.update_data(original_profile=profile)
+    
+    await message.answer(
+        f"✅ Опыт изменён на: <b>{experience_text}</b>!",
+        parse_mode="HTML",
+        reply_markup=hide_keyboard()
+    )
+    await return_to_edit_menu(message, state)
 
 @router.message(ProfileStates.waiting_for_new_about)
 async def process_new_about(message: types.Message, state: FSMContext):
@@ -330,7 +276,7 @@ async def process_new_about(message: types.Message, state: FSMContext):
     about = message.text.strip()
     
     if len(about) < 10:
-        await message.answer("⚠️ Описание слишком короткое (минимум 10 символов).")
+        await message.answer("⚠️ Описание слишком короткое (мин. 10 символов).")
         return
     
     data = await state.get_data()
@@ -344,22 +290,16 @@ async def process_new_about(message: types.Message, state: FSMContext):
         return
     
     telegram_id = message.from_user.id
-    try:
-        await backend_client.update_profile(telegram_id, {"description": new_description})
-        
-        profile['description'] = new_description
-        await state.update_data(original_profile=profile)
-        
-        await message.answer(
-            "✅ Описание обновлено!",
-            reply_markup=hide_keyboard()
-        )
-        await return_to_edit_menu(message, state)
-        
-    except Exception as e:
-        logger.error(f"Error updating description: {e}")
-        await message.answer("❌ Ошибка при обновлении описания. Попробуй позже.")
-
+    await backend_client.update_profile(telegram_id, {"description": new_description})
+    
+    profile['description'] = new_description
+    await state.update_data(original_profile=profile)
+    
+    await message.answer(
+        "✅ Описание обновлено!",
+        reply_markup=hide_keyboard()
+    )
+    await return_to_edit_menu(message, state)
 
 async def edit_photos_start(message: types.Message, state: FSMContext):
     data = await state.get_data()
@@ -373,7 +313,6 @@ async def edit_photos_start(message: types.Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=get_photo_edit_keyboard()
     )
-
 
 async def upload_new_photos(message: types.Message, state: FSMContext):
     await message.answer(
@@ -395,7 +334,6 @@ async def keep_current_photos(message: types.Message, state: FSMContext):
         reply_markup=hide_keyboard()
     )
     await return_to_edit_menu(message, state)
-
 
 @router.message(ProfileStates.waiting_for_new_photos)
 async def process_new_photos(message: types.Message, state: FSMContext):
@@ -443,7 +381,6 @@ async def process_new_photos(message: types.Message, state: FSMContext):
         "Отправляй ещё или нажми «✅ Завершить загрузку фото»."
     )
 
-
 async def finish_photos_upload(message: types.Message, state: FSMContext):
     data = await state.get_data()
     new_media = data.get("new_media", [])
@@ -458,24 +395,18 @@ async def finish_photos_upload(message: types.Message, state: FSMContext):
         return
     
     telegram_id = message.from_user.id
-    try:
-        await backend_client.update_profile(telegram_id, {"media": new_media})
-        
-        profile = data.get('original_profile', {})
-        profile['media'] = new_media
-        await state.update_data(original_profile=profile)
-        
-        await message.answer(
-            f"✅ Фото обновлены! Загружено: {len(new_media)}/3",
-            reply_markup=hide_keyboard()
-        )
-        
-    except Exception as e:
-        logger.error(f"Error updating photos: {e}")
-        await message.answer("❌ Ошибка при обновлении фото. Попробуй позже.")
+    await backend_client.update_profile(telegram_id, {"media": new_media})
     
+    profile = data.get('original_profile', {})
+    profile['media'] = new_media
+    await state.update_data(original_profile=profile)
+    
+    await message.answer(
+        f"✅ Фото обновлены! Загружено: {len(new_media)}/3",
+        reply_markup=hide_keyboard()
+    )
+            
     await return_to_edit_menu(message, state)
-
 
 @router.message(F.text == "Скрыть анкету")
 async def delete_profile_start(message: types.Message, state: FSMContext):
@@ -485,31 +416,25 @@ async def delete_profile_start(message: types.Message, state: FSMContext):
         parse_mode="HTML",
         reply_markup=get_confirmation_keyboard("✅ Да, скрыть", "❌ Нет, отмена")
     )
-    await state.set_state(ProfileStates.waiting_for_delete_confirm)
+    await state.set_state(ProfileStates.waiting_for_hide_confirm)
 
-
-@router.message(ProfileStates.waiting_for_delete_confirm, F.text == "✅ Да, скрыть")
-async def confirm_delete(message: types.Message, state: FSMContext):
+@router.message(ProfileStates.waiting_for_hide_confirm, F.text == "✅ Да, скрыть")
+async def confirm_hide(message: types.Message, state: FSMContext):
     telegram_id = message.from_user.id
-    try:
-        await backend_client.update_profile(telegram_id, {"is_active": False})
-        await message.answer(
-            "Анкета скрыта.\n\nЕсли захочешь вернуться напиши мне",
-            reply_markup=return_my_profile_active()
-        )
-    except Exception as e:
-        logger.error(f"Error deleting profile: {e}")
-        await message.answer("⚠️ Ошибка при удалении")
-    finally:
-        await state.clear()
+    await backend_client.update_profile(telegram_id, {"is_active": False})
+    
+    await message.answer(
+        "Анкета скрыта.\n\nЕсли захочешь вернуться напиши мне",
+        reply_markup=return_my_profile_active()
+    )
 
+    await state.clear()
 
-@router.message(ProfileStates.waiting_for_delete_confirm, F.text == "❌ Нет, отмена")
-async def cancel_delete(message: types.Message, state: FSMContext):
+@router.message(ProfileStates.waiting_for_hide_confirm, F.text == "❌ Нет, отмена")
+async def cancel_hide(message: types.Message, state: FSMContext):
     await state.clear()
     from src.handlers.profile import show_my_profile_message
     await show_my_profile_message(message, message.from_user.id)
-
 
 @router.message(F.text == "Вернуться назад")
 async def user_come_back(message: types.Message, state: FSMContext):
@@ -538,13 +463,10 @@ async def return_to_edit_menu(message: types.Message, state: FSMContext):
     data = await state.get_data()
     profile = data.get('original_profile', {})
     
-    try:
-        updated_profile = await backend_client.get_profile(message.from_user.id)
-        if updated_profile:
-            await state.update_data(original_profile=updated_profile)
-            profile = updated_profile
-    except:
-        pass
+    updated_profile = await backend_client.get_profile(message.from_user.id)
+    if updated_profile:
+        await state.update_data(original_profile=updated_profile)
+        profile = updated_profile
     
     await message.answer(
         "✏️ <b>Редактирование анкеты</b>\n\n"
@@ -557,7 +479,6 @@ async def return_to_edit_menu(message: types.Message, state: FSMContext):
         reply_markup=get_edit_choice_keyboard()
     )
     await state.set_state(ProfileStates.editing_profile)
-
 
 async def finish_editing(message: types.Message, state: FSMContext):
     await state.clear()

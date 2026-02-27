@@ -96,6 +96,19 @@ async def swipe_dislike(message: types.Message, state: FSMContext):
     await _process_swipe_action(message, state, "dislike")
 
 
+@router.message(F.text == "💤", StateFilter(SwipeStates.viewing_profile))
+async def exit_swipe(message: types.Message, state: FSMContext):
+    await state.clear()
+
+    telegram_id = message.from_user.id
+    profile = await backend_client.get_profile(telegram_id)
+    
+    await message.answer(
+        "🏠 Главное меню",
+        reply_markup=get_main_menu_keyboard(has_profile=bool(profile))
+    )
+
+
 @router.message(F.text == "⚠️ Жалоба", StateFilter(SwipeStates.viewing_profile))
 async def swipe_report_start(message: types.Message, state: FSMContext):
     data = await state.get_data()

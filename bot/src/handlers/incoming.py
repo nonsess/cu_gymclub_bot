@@ -12,11 +12,9 @@ from src.api.client import backend_client
 router = Router()
 logger = logging.getLogger(__name__)
 
-
 class IncomingStates(StatesGroup):
     viewing_incoming = State()
     reporting = State()
-
 
 @router.callback_query(F.data == "check_incoming")
 async def check_incoming(callback: types.CallbackQuery, state: FSMContext):
@@ -30,17 +28,12 @@ async def check_incoming(callback: types.CallbackQuery, state: FSMContext):
     
     await show_next_incoming(callback.message, telegram_id, state)
 
-
 async def show_next_incoming(
     message: types.Message,
     telegram_id: int,
     state: FSMContext
 ):
-    try:
-        profile = await backend_client.get_next_incoming_like(telegram_id)
-    except Exception as e:
-        logger.error(f"Error getting next incoming like: {e}")
-        profile = None
+    profile = await backend_client.get_next_incoming_like(telegram_id)
     
     if not profile:
         await state.clear()
@@ -67,7 +60,6 @@ async def show_next_incoming(
     media_ids = profile.get('photo_ids', [])
     await _send_profile_album(message, media_ids, text)
 
-
 @router.message(F.text == "👍", StateFilter(IncomingStates.viewing_incoming))
 async def incoming_like(message: types.Message, state: FSMContext):
     telegram_id = message.from_user.id
@@ -78,15 +70,9 @@ async def incoming_like(message: types.Message, state: FSMContext):
         await message.answer("⚠️ Ошибка: анкета не найдена")
         return
     
-    try:
-        await backend_client.decide_on_incoming(telegram_id, to_user_id, "like")
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        await message.answer("⚠️ Ошибка")
-        return
-    
-    await show_next_incoming(message, telegram_id, state)
+    await backend_client.decide_on_incoming(telegram_id, to_user_id, "like")
 
+    await show_next_incoming(message, telegram_id, state)
 
 @router.message(F.text == "👎", StateFilter(IncomingStates.viewing_incoming))
 async def incoming_dislike(message: types.Message, state: FSMContext):
@@ -95,13 +81,9 @@ async def incoming_dislike(message: types.Message, state: FSMContext):
     to_user_id = data.get("current_incoming_id")
     
     if to_user_id:
-        try:
-            await backend_client.decide_on_incoming(telegram_id, to_user_id, "dislike")
-        except:
-            pass
+        await backend_client.decide_on_incoming(telegram_id, to_user_id, "dislike")
     
     await show_next_incoming(message, telegram_id, state)
-
 
 @router.message(F.text == "⚠️ Жалоба", StateFilter(IncomingStates.viewing_incoming))
 async def incoming_report_start(message: types.Message, state: FSMContext):
@@ -118,7 +100,6 @@ async def incoming_report_start(message: types.Message, state: FSMContext):
         reply_markup=get_report_reason_keyboard(to_user_id)
     )
 
-
 @router.callback_query(F.data.startswith("report_reason_"), StateFilter(IncomingStates.reporting))
 async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
@@ -128,14 +109,12 @@ async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContex
     
     reason_labels = {"spam": "Спам/реклама", "fake": "Фейковая анкета", "other": "Другое"}
     
-    try:
-        await backend_client.send_action(
-            telegram_id, to_user_id, "report", report_reason=reason_labels.get(reason, reason)
-        )
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        await callback.answer("⚠️ Ошибка", show_alert=True)
-        return
+    await backend_client.send_action(
+        telegram_id,
+        to_user_id,
+        "report",
+        report_reason=reason_labels.get(reason, reason)
+    )
     
     await callback.message.answer("✅ Жалоба отправлена!")
     await state.clear()
@@ -143,13 +122,11 @@ async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContex
     telegram_id = callback.from_user.id
     await show_next_incoming(callback.message, telegram_id, state)
 
-
 @router.callback_query(F.data == "cancel_report", StateFilter(IncomingStates.reporting))
 async def cancel_report(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.answer("✅ Отменено.")
     await show_next_incoming(callback.message, callback.from_user.id, state)
-
 
 async def check_incoming_from_menu(
     message: types.Message,

@@ -40,16 +40,16 @@ def get_gender_keyboard(current_gender: str = None) -> ReplyKeyboardMarkup:
     if current_gender:
         current_text = "👨 Парень (текущий)" if current_gender == "male" else "👩 Девушка (текущий)"
         buttons.append([KeyboardButton(text=current_text)])
+        buttons.append([KeyboardButton(text="🔙 Отмена")])
     
     buttons.extend([
         [KeyboardButton(text="👨 Парень"), KeyboardButton(text="👩 Девушка")],
-        [KeyboardButton(text="🔙 Отмена")]
     ])
     
     return ReplyKeyboardMarkup(
         keyboard=buttons,
         resize_keyboard=True,
-        input_field_placeholder="Выбери пол или нажми Отмена 👇"
+        input_field_placeholder="Выбери пол 👇"
     )
 
 
@@ -81,8 +81,9 @@ def get_experience_keyboard(current_exp: str = None) -> ReplyKeyboardMarkup:
             row = []
     if row:
         buttons.append(row)
-    
-    buttons.append([KeyboardButton(text="🔙 Отмена")])
+
+    if current_exp and current_exp in exp_labels:
+        buttons.append([KeyboardButton(text="🔙 Отмена")])
     
     return ReplyKeyboardMarkup(
         keyboard=buttons,
@@ -107,7 +108,6 @@ def get_photo_upload_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="✅ Завершить загрузку фото")],
-            [KeyboardButton(text="🔙 Отмена")]
         ],
         resize_keyboard=True,
         input_field_placeholder="Отправляй фото (до 3 шт) 👇"
@@ -117,8 +117,7 @@ def get_photo_upload_keyboard() -> ReplyKeyboardMarkup:
 def get_name_keyboard(first_name: str) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text=first_name)],
-            [KeyboardButton(text="🔙 Отмена")]
+            [KeyboardButton(text=first_name)]
         ],
         resize_keyboard=True,
         input_field_placeholder="Напиши имя или выбери из профиля 👇"
@@ -144,9 +143,3 @@ def get_confirmation_keyboard(confirm_text: str, cancel_text: str) -> ReplyKeybo
         ],
         resize_keyboard=True
     )
-
-
-def get_inline_back_keyboard(callback_data: str = "back_to_start") -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 Назад", callback_data=callback_data)]
-    ])

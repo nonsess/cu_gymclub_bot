@@ -10,12 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 async def show_main_menu(message: types.Message, telegram_id: int):
-    try:
-        profile = await backend_client.get_profile(telegram_id)
-        has_profile = bool(profile)
-    except Exception as e:
-        logger.error(f"Error getting profile for menu: {e}")
-        has_profile = False
+    profile = await backend_client.get_profile(telegram_id)
+    has_profile = bool(profile)
     
     first_name = message.from_user.first_name or "Друг"
     
@@ -41,12 +37,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     username = message.from_user.username
     first_name = message.from_user.first_name
     
-    try:
-        await backend_client.register_user(telegram_id, username, first_name)
-    except Exception as e:
-        logger.error(f"Error registering user: {e}")
-        await message.answer("⚠️ Ошибка, попробуйте позже.")
-        return
+    await backend_client.register_user(telegram_id, username, first_name)
     
     await state.clear()
     

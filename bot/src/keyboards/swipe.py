@@ -8,6 +8,7 @@ def get_swipe_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text="👎"),
                 KeyboardButton(text="👍"),
                 KeyboardButton(text="⚠️ Жалоба"),
+                KeyboardButton(text="💤"),
             ]
         ],
         resize_keyboard=True,
