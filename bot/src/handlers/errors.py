@@ -7,32 +7,29 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 @router.errors()
-async def handle_http_status_error(event: ErrorEvent):
+async def handle_errors(event: ErrorEvent):
     exception = event.exception
+    update = event.update
+
+    error_message = "К сожалению, что-то пошло не по плану :(\n\nНо мы уже работаем над решением проблемы, возвращайся позже"
     
     if isinstance(exception, HTTPStatusError):
         logger.error(f"HTTP ошибка: {exception.response.status_code} - {exception.response.text}")
         
-        if event.update.message:
-            await event.update.message.answer(
-                "⚠️ Временные проблемы. Попробуйте позже."
-            )
-        elif event.update.callback_query:
-            await event.update.callback_query.answer(
-                "⚠️ Временные проблемы. Попробуйте позже.", show_alert=True
-            )
-        
+        if update.message:
+            await update.message.answer(error_message)
+        elif update.callback_query:
+            await update.callback_query.answer(error_message, show_alert=True)
         return True
+
+    logger.exception("Необработанная ошибка:", exc_info=exception)
     
-    return False
-
-
-@router.errors()
-async def handle_all_errors(event: ErrorEvent):
-    logger.exception(
-        "Необработанная ошибка: %s", 
-        event.exception, 
-        exc_info=event.exception
-    )
+    try:
+        if update.message:
+            await update.message.answer(error_message)
+        elif update.callback_query:
+            await update.callback_query.answer(error_message, show_alert=True)
+    except Exception as e:
+        logger.error(f"Критический сбой при ответе пользователю: {e}")
     
     return True

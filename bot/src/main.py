@@ -22,12 +22,12 @@ def create_dispatcher() -> Dispatcher:
     dp = Dispatcher(storage=MemoryStorage())
     
     dp.include_routers(
+        errors.router,
         start.router,
         swipe.router,
         profile.router,
         incoming.router,
         profile_edit.router,
-        errors.router
     )
     
     dp.startup.register(on_startup)
