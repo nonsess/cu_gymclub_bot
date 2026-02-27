@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.profile import Profile
 from src.schemas.profile import ProfileCreate, ProfileUpdate
 from src.services.embedding import embedding_service
 from src.repositories.profile import ProfileRepository
@@ -8,7 +9,7 @@ from src.core.exceptions.profile import (
     NoMoreProfilesException,
     ProfileAlreadyExistsException
 )
-from backend.src.services.cache import action_cache
+from src.services.cache import cache
 
 class ProfileService:
     def __init__(self, session: AsyncSession):
@@ -71,20 +72,40 @@ class ProfileService:
             update_data['embedding'] = await embedding_service.generate_embedding(
                 update_data['description']
             )
+
+        await cache.invalidate_profile(profile.id)
         
         return await self.__profile_repo.update(profile, **update_data)
 
-    async def delete_profile(self, profile_id: int):
-        profile = await self.__profile_repo.get(profile_id)
-        if not profile:
-            raise ProfileNotFoundException(profile_id)
+    # TODO: Move to admin routes
+    # async def delete_profile(self, profile_id: int):
+    #     profile = await self.__profile_repo.get(profile_id)
+    #     if not profile:
+    #         raise ProfileNotFoundException(profile_id)
         
-        await self.__profile_repo.delete(profile)
-        return True
+    #     await self.__profile_repo.delete(profile)
+    #     return True
     
     async def get_next_profile(self, user_id: int):
+        profile_id = await cache.pop_from_queue(user_id)
+
+        if profile_id:
+            cached = await cache.get_cached_profile(profile_id)
+            if cached and cached.get('is_active'):
+                await cache.add_seen_user_id(user_id, cached["user_id"])
+                return cached
+
+            profile = await self.__profile_repo.get(profile_id)
+
+            if profile and profile.is_active:
+                profile_dict = self._profile_to_dict(profile)
+                await cache.cache_profile(profile_dict)
+                
+                await cache.add_seen_user_id(user_id, profile.user_id)
+                return profile_dict
+
         current_profile = await self.__profile_repo.get_by_user_id(user_id)
-        seen_user_ids = await action_cache.get_seen_user_ids(user_id)
+        seen_user_ids = await cache.get_seen_user_ids(user_id)
         
         if current_profile and current_profile.embedding is not None:
             user_embedding = current_profile.embedding
@@ -100,6 +121,12 @@ class ProfileService:
             )
             
             if profiles:
+                for ind, p in enumerate(profiles):
+                    if ind != 0: await cache.cache_profile(self._profile_to_dict(p))
+
+                profile_ids = [p.id for p in profiles]
+                await cache.fill_queue(user_id, profile_ids)
+
                 return profiles[0]
                 
         profiles = await self.__profile_repo.get_random_profiles(
@@ -108,6 +135,26 @@ class ProfileService:
         )
         
         if profiles:
+            for ind, p in enumerate(profiles):
+                if ind != 0: await cache.cache_profile(self._profile_to_dict(p))
+
+            profile_ids = [p.id for p in profiles]
+            await cache.fill_queue(user_id, profile_ids)
+
             return profiles[0]
         
         raise NoMoreProfilesException()
+    
+    def _profile_to_dict(self, profile: Profile) -> dict:
+        return {
+            'id': profile.id,
+            'user_id': profile.user_id,
+            'name': profile.name,
+            'description': profile.description,
+            'gender': profile.gender.value if profile.gender else None,
+            'age': profile.age,
+            'media': profile.media or [],
+            'is_active': profile.is_active,
+            'updated_at': profile.updated_at,
+            'created_at': profile.created_at
+        }
