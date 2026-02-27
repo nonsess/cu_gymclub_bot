@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from src.services.action import ActionService
 from src.models.user import User
+from src.models.profile import Profile
 from src.db.session import get_db
 from src.services.user import UserService
 from src.services.profile import ProfileService
@@ -31,7 +32,7 @@ ActionServiceDep = Annotated[ActionService, Depends(get_action_service)]
 
 async def get_current_user(
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: Annotated[AsyncSession, Depends(get_db)]
 ) -> User:
     telegram_id = request.headers.get("X-Telegram-ID")
     
@@ -51,3 +52,22 @@ async def get_current_user(
     return user
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
+
+async def get_user_with_active_profile(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: CurrentUserDep,
+):
+    result = await db.execute(
+        select(Profile)
+        .where(Profile.user_id == user.id)
+        .where(Profile.is_active == True)
+    )
+    active_profile = result.scalar_one_or_none()
+
+    if not active_profile:
+        return
+        raise HTTPException(status_code=401, detail="Profile is missing or inactive")
+    
+    return user
+
+UserWithActiveProfileDep = Annotated[User, Depends(get_user_with_active_profile)]
