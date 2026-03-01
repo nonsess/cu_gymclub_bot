@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
 
     TELEGRAM_BOT_TOKEN: str
+    ADMIN_TELEGRAM_ID: str
 
     REDIS_URL: str
 

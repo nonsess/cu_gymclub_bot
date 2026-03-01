@@ -15,3 +15,11 @@ class ConflictException(DomainException):
 class ValidationException(DomainException):
     def __init__(self, message: str, code: str = None):
         super().__init__(message, code or "VALIDATION_ERROR")
+
+class ForbiddenException(DomainException):
+    def __init__(self, message: str, code: str = None):
+        super().__init__(message, code or "FORBIDDEN_ERROR")
+
+class UnauthorizedException(DomainException):
+    def __init__(self, message: str, code: str = None):
+        super().__init__(message, code or "UNAUTHORIZED_ERROR")

@@ -53,8 +53,6 @@ class TelegramNotificationService:
     async def notify_new_like(
         self,
         chat_id: int | str,
-        liker_username: Optional[str] = None,
-        liker_name: Optional[str] = None
     ) -> bool:        
         text = (
             f"❤️ <b>Вам поставили лайк!</b>\n"
@@ -84,6 +82,5 @@ class TelegramNotificationService:
         )
                 
         return await self.send_message(chat_id, text)
-
 
 telegram_service = TelegramNotificationService(settings.TELEGRAM_BOT_TOKEN)

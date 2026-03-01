@@ -199,9 +199,6 @@ async def process_photo(message: types.Message, state: FSMContext):
     if message.photo:
         file_id = message.photo[-1].file_id
         media_type = "photo"
-    elif message.document and message.document.mime_type.startswith('image/'):
-        file_id = message.document.file_id
-        media_type = "photo"
     elif message.video:
         file_id = message.video.file_id
         media_type = "video"
@@ -213,12 +210,9 @@ async def process_photo(message: types.Message, state: FSMContext):
     media_list = data.get("media", [])
     
     if len(media_list) >= 3:
-        await message.answer(
-            "⚠️ Максимум 3 медиафайла в анкете.\n"
-            "Нажми «✅ Завершить загрузку фото» для завершения."
-        )
+        await finish_photo_upload(message, state)
         return
-    
+
     media_list.append({"file_id": file_id, "type": media_type})
     await state.update_data(media=media_list)
 

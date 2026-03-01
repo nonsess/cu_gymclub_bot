@@ -2,7 +2,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.schemas.user import UserRegister
 from src.repositories.user import UserRepository
-from src.repositories.profile import ProfileRepository
 
 class UserService:
     def __init__(self, session: AsyncSession):

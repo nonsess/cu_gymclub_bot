@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from src.core.exceptions.base import (
     DomainException,
+    ForbiddenException,
     NotFoundException,
     ConflictException
 )
@@ -19,6 +20,8 @@ async def domain_exception_handler(request: Request, exc: DomainException) -> JS
         status_code = status.HTTP_409_CONFLICT
     elif isinstance(exc, NoMoreProfilesException):
         status_code = status.HTTP_404_NOT_FOUND
+    elif isinstance(exc, ForbiddenException):
+        status_code = status.HTTP_403_FORBIDDEN
     
     return JSONResponse(
         status_code=status_code,

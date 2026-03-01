@@ -25,8 +25,6 @@ class ActionService:
         
         await telegram_service.notify_new_like(
             chat_id=to_user.telegram_id,
-            liker_username=from_user.username if from_user else None,
-            liker_name=from_user.first_name if from_user else None
         )
                 
     async def _send_match_notification(self, user1_id: int, user2_id: int):

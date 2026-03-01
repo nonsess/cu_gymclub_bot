@@ -1,15 +1,20 @@
+import secrets
 from fastapi import Depends, HTTPException, Request
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from src.core.exceptions.user import UserIsBanned, UserIsUnauthorized
+from src.core.exceptions.admin import InvalidPermissions
+from src.services.admin import AdminService
 from src.services.action import ActionService
 from src.models.user import User
 from src.models.profile import Profile
 from src.db.session import get_db
 from src.services.user import UserService
 from src.services.profile import ProfileService
+from src.core.config import settings
 
 async def get_user_service(
     db: Annotated[AsyncSession, Depends(get_db)]
@@ -26,9 +31,15 @@ async def get_action_service(
 ):
     return ActionService(db)
 
+async def get_admin_service(
+    db: Annotated[AsyncSession, Depends(get_db)]
+):
+    return AdminService(db)
+
 UserServiceDep = Annotated[UserService, Depends(get_user_service)]
 ProfileServiceDep = Annotated[ProfileService, Depends(get_profile_service)]
 ActionServiceDep = Annotated[ActionService, Depends(get_action_service)]
+AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 
 async def get_current_user(
     request: Request,
@@ -37,7 +48,7 @@ async def get_current_user(
     telegram_id = request.headers.get("X-Telegram-ID")
     
     if not telegram_id:
-        raise HTTPException(status_code=401, detail="X-Telegram-ID header required")
+        raise UserIsUnauthorized()
     
     result = await db.execute(
         select(User)
@@ -46,8 +57,11 @@ async def get_current_user(
     )
     user = result.scalar_one_or_none()
     
+    if user.is_banned:
+        raise UserIsBanned()
+
     if not user:
-        raise HTTPException(status_code=401, detail="User not registered")
+        raise UserIsUnauthorized()
     
     return user
 
@@ -66,8 +80,17 @@ async def get_user_with_active_profile(
 
     if not active_profile:
         return
-        raise HTTPException(status_code=401, detail="Profile is missing or inactive")
     
     return user
 
 UserWithActiveProfileDep = Annotated[User, Depends(get_user_with_active_profile)]
+
+async def get_admin_user(
+    user: CurrentUserDep,
+):
+    if secrets.compare_digest(user.telegram_id, settings.ADMIN_TELEGRAM_ID):
+        return user
+    
+    raise InvalidPermissions()
+
+AdminDep = Annotated[User, Depends(get_admin_user)]
