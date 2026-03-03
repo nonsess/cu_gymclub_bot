@@ -64,7 +64,7 @@ class AdminService:
         batch_size: int = 50,
         delay_between: float = 1.0,
     ):
-        self._ensure_permissions(admin)
+        await self._ensure_permissions(admin)
         
         task_id = str(uuid.uuid4())[:8]
         logger.info(f"📢 [{task_id}] Broadcast task started")
@@ -74,7 +74,6 @@ class AdminService:
             "sent": 0,
             "failed": 0,
             "blocked": 0,
-            "no_chat_id": 0,
         }
         
         offset = 0
@@ -88,16 +87,13 @@ class AdminService:
             if not users:
                 break
             
-            for telegram_id, chat_id in users:
+            for user in users:
+                telegram_id = user[0]
                 stats["total"] += 1
-                
-                if not chat_id:
-                    stats["no_chat_id"] += 1
-                    continue
-                
+                                
                 try:
                     success = await telegram_service.send_message(
-                        chat_id=chat_id,
+                        chat_id=telegram_id,
                         text=message_text,
                         parse_mode="HTML"
                     )
@@ -149,7 +145,6 @@ class AdminService:
             f"• ✅ Доставлено: {stats['sent']} ({success_rate:.1f}%)\n"
             f"• ❌ Ошибки: {stats['failed']}\n"
             f"• 🚫 Заблокировали бота: {stats['blocked']}\n"
-            f"• ⚠️ Нет chat_id: {stats['no_chat_id']}\n\n"
         )
         
         await telegram_service.send_message(
