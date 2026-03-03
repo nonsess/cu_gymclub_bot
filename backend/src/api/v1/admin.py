@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 
 from src.core.deps import AdminDep, AdminServiceDep
 
-router = APIRouter(prefix="/admin")
+router = APIRouter(prefix="/admin", tags=["Admin"])
 
 @router.get("/export/profiles")
 async def export_profiles(

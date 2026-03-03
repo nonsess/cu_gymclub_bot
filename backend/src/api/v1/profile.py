@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from src.schemas.profile import ProfileCreate, ProfileResponse, ProfileUpdate
 from src.core.deps import CurrentUserDep, ProfileServiceDep, UserWithActiveProfileDep
 
-router = APIRouter(prefix="/profile")
+router = APIRouter(prefix="/profile", tags=["Profile"])
 
 @router.get("", response_model=ProfileResponse)
 async def get_my_profile(

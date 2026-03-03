@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from src.core.deps import UserServiceDep
 from src.schemas.user import UserRegister
 
-router = APIRouter(prefix="/users")
+router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/register")
 async def register_user(
