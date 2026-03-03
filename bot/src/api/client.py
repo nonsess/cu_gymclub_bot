@@ -89,6 +89,33 @@ class BackendClient:
             "action_type": action_type
         }
 
-        return await self._request("POST", f"/matches/incoming/{target_user_id}/decide", telegram_id, json=json_data)
+        return await self._request(
+            "POST",
+            f"/matches/incoming/{target_user_id}/decide",
+            telegram_id,
+            json=json_data
+        )
+
+    async def start_broadcast(self, telegram_id: int, message_text: str) -> dict:
+        return await self._request(
+            "POST",
+            "/admin/broadcasts",
+            telegram_id,
+            params={"message_text": message_text}
+        )
+
+    async def export_profiles(
+        self,
+        telegram_id: int,
+        params: dict = None
+    ) -> str:
+        response = await self._client.get(
+            "/admin/export/profiles",
+            headers=self._headers(telegram_id),
+            params=params
+        )
+        
+        response.raise_for_status()
+        return response.text
 
 backend_client = BackendClient(settings.BACKEND_URL)
