@@ -82,5 +82,49 @@ class TelegramNotificationService:
         )
                 
         return await self.send_message(chat_id, text)
+    
+    async def send_media_group(
+        self,
+        chat_id: int | str,
+        media_items: list[dict],
+        caption: str = None,
+        parse_mode: str = "HTML"
+    ) -> bool:
+        if not self.__bot_token or not media_items:
+            return False
+        
+        url = f"{self.__base_url}/sendMediaGroup"
+        
+        media_payload = []
+        for i, item in enumerate(media_items[:10]):
+            media_obj = {
+                "type": item["type"],
+                "media": item["media"],
+            }
+            if i == 0 and caption:
+                media_obj["caption"] = caption
+                media_obj["parse_mode"] = parse_mode
+            
+            media_payload.append(media_obj)
+        
+        payload = {
+            "chat_id": str(chat_id),
+            "media": media_payload,
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, json=payload)
+                
+                if response.status_code == 200:
+                    logger.info(f"✅ Media group sent to {chat_id}")
+                    return True
+                else:
+                    logger.error(f"❌ Failed to send media group: {response.status_code} - {response.text}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Error sending media group to {chat_id}: {e}")
+            return False
 
 telegram_service = TelegramNotificationService(settings.TELEGRAM_BOT_TOKEN)

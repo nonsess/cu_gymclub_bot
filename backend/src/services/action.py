@@ -1,3 +1,4 @@
+from src.models.profile import Profile
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions.profile import NoMoreProfilesException
 from src.repositories.profile import ProfileRepository
@@ -8,6 +9,10 @@ from src.models.action import ActionTypeEnum
 from src.core.exceptions.action import SelfActionException
 from src.services.telegram import telegram_service
 from src.services.cache import cache
+from src.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ActionService:
     def __init__(self, session: AsyncSession):
@@ -16,7 +21,7 @@ class ActionService:
         self.__match_repo = MatchRepository(session)
         self.__profile_repo = ProfileRepository(session)
 
-    async def _send_like_notification(self, from_user_id: int, to_user_id: int):
+    async def _send_like_notification(self, to_user_id: int):
         to_user = await self.__user_repo.get(to_user_id)
         
         if not to_user or not to_user.telegram_id:
@@ -42,6 +47,78 @@ class ActionService:
                 chat_id=user2.telegram_id,
                 matched_username=user1.username if user1 else None,
                 matched_name=user1.first_name if user1 else None
+            )
+    
+    async def _send_report_notification_to_admin(
+        self, 
+        from_user_id: int,
+        to_user_id: int,
+        report_reason: str
+    ):
+        profile = await self.__profile_repo.get_by_user_id(to_user_id)
+        reported_user = await self.__user_repo.get(to_user_id)
+        reporter_user = await self.__user_repo.get(from_user_id)
+        
+        if not profile or not reported_user:
+            return
+        
+        gender_map = {
+            "male": "👨 Парень",
+            "female": "👩 Девушка",
+        }
+        gender_text = gender_map.get(profile.gender, profile.gender or "❓")
+        
+        desc_parts = profile.description.split('\n\n🏋️ Опыт тренировок:')
+        main_desc = desc_parts[0][:300] + ("..." if len(desc_parts[0]) > 300 else "")
+        experience = desc_parts[1] if len(desc_parts) > 1 else None
+        
+        reporter_name = (
+            f"@{reporter_user.username}" if reporter_user and reporter_user.username 
+            else f"ID: {reporter_user.telegram_id}" if reporter_user 
+            else "Неизвестно"
+        )
+        reported_name = (
+            f"@{reported_user.username}" if reported_user.username 
+            else f"ID: {reported_user.telegram_id}"
+        )
+        
+        caption = (
+            f"⚠️ <b>НОВАЯ ЖАЛОБА</b>\n\n"
+            f"🔍 <b>Информация:</b>\n"
+            f"• 📢 Пожаловался: {reporter_name}\n"
+            f"• 👤 На пользователя: {reported_name}\n"
+            f"• 📋 Причина: {report_reason}\n\n"
+            f"📝 <b>Профиль:</b>\n"
+            f"• Имя: {profile.name}\n"
+            f"• Возраст: {profile.age or '?'}\n"
+            f"• Пол: {gender_text}\n"
+            f"• Описание: <code>{main_desc}</code>\n"
+            f"{f'• Опыт: {experience}\n' if experience else ''}"
+            f"• USER_ID: <code>{to_user_id}</code>\n"
+            f"• Telegram ID: <code>{reported_user.telegram_id}</code>"
+        )
+        
+        media_payload = []
+        
+        if profile.media:
+            for media in profile.media[:3]:
+                media_payload.append({
+                    "type": media.type,
+                    "media": media.file_id,
+                })
+        
+        if media_payload:
+            await telegram_service.send_media_group(
+                chat_id=settings.ADMIN_TELEGRAM_ID,
+                media_items=media_payload,
+                caption=caption,
+                parse_mode="HTML"
+            )
+        else:
+            await telegram_service.send_message(
+                chat_id=settings.ADMIN_TELEGRAM_ID,
+                text=caption,
+                parse_mode="HTML"
             )
 
     async def send_action(
@@ -71,7 +148,13 @@ class ActionService:
                 await self.__match_repo.create_match(from_user_id, to_user_id)
                 await self._send_match_notification(from_user_id, to_user_id)
             else:
-                await self._send_like_notification(from_user_id, to_user_id)
+                await self._send_like_notification(to_user_id)
+        elif action_type == ActionTypeEnum.report and report_reason:
+            await self._send_report_notification_to_admin(
+                from_user_id,
+                to_user_id,
+                report_reason
+            )
 
     async def decide_on_incoming(
         self, 
