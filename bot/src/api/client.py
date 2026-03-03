@@ -117,5 +117,11 @@ class BackendClient:
         
         response.raise_for_status()
         return response.text
+    
+    async def ban_user(self, telegram_id: int, user_id: int) -> None:
+        await self._client.post(
+            f"/admin/ban/user/{user_id}",
+            headers=self._headers(telegram_id)
+        )
 
 backend_client = BackendClient(settings.BACKEND_URL)
