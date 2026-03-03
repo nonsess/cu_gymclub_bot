@@ -35,6 +35,10 @@ class AdminService:
         user = await self.__user_repo.get(user_id)
         if not user:
             raise UserNotFound()
+        
+        if user.id == admin.id:
+            raise InvalidPermissions()
+
         await self.__user_repo.update(user, is_banned=True)
         
         profile = await self.__profile_repo.get_by_user_id(user_id)
