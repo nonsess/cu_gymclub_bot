@@ -43,7 +43,7 @@ class AdminService:
         
         profile = await self.__profile_repo.get_by_user_id(user_id)
         if profile:
-            await self.__profile_repo.update(profile, is_active=False)        
+            await self.__profile_repo.delete(profile)        
             await cache.invalidate_profile(profile.id)
     
     async def export_profiles_to_csv(
