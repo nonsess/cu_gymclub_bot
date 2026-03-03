@@ -19,7 +19,7 @@ class UserRepository(BaseRepository[User]):
             user = await self.create(telegram_id=telegram_id, username=username, first_name=first_name)
         return user
     
-    async def get_active_telegram_ids(self, limit: int = 1000, offset: int = 0) -> list[tuple[int, str]]:
+    async def get_active_telegram_ids(self, limit: int = 1000, offset: int = 0) -> list[str]:
         query = (
             select(User.telegram_id)
             .where(User.is_banned == False)
