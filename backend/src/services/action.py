@@ -17,7 +17,6 @@ class ActionService:
         self.__profile_repo = ProfileRepository(session)
 
     async def _send_like_notification(self, from_user_id: int, to_user_id: int):
-        from_user = await self.__user_repo.get(from_user_id)
         to_user = await self.__user_repo.get(to_user_id)
         
         if not to_user or not to_user.telegram_id:
