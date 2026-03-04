@@ -17,7 +17,10 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      - LOG_FILE_PATH=/app/logs/app.log
     volumes:
+      - ./logs:/app/logs
       - ./backend:/app
       - model_cache:/app/model_cache
     depends_on:

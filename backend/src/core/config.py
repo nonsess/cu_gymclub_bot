@@ -12,6 +12,12 @@ class Settings(BaseSettings):
 
     CREATE_SEED_DATA: bool = False
 
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "JSON"
+    LOG_FILE_PATH: str = "./logs/app.log"
+    LOG_ROTATE_MB: int = 10
+    LOG_BACKUP_COUNT: int = 5
+    
     @property
     def POSTGRES_DSN(self):
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@db:5432/{self.POSTGRES_DB}"
