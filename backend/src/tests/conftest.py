@@ -22,7 +22,11 @@ async def test_engine():
             )
             if not exists:
                 await conn.execute(text("CREATE DATABASE gymbot_db_test"))
-                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                
+                await conn.execute(
+                    text("CREATE EXTENSION IF NOT EXISTS vector"),
+                    execution_options={"isolation_level": "AUTOCOMMIT"}
+                )
     except Exception as e:
         print(f"Warning: Could not setup test DB: {e}")
     finally:
@@ -31,6 +35,7 @@ async def test_engine():
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(BaseModel.metadata.create_all)
     
     yield engine
