@@ -1,5 +1,5 @@
 import secrets
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -56,12 +56,12 @@ async def get_current_user(
         .options(selectinload(User.profile))
     )
     user = result.scalar_one_or_none()
-    
-    if user.is_banned:
-        raise UserIsBanned()
 
     if not user:
         raise UserIsUnauthorized()
+    
+    if user.is_banned:
+        raise UserIsBanned()
     
     return user
 
@@ -79,7 +79,7 @@ async def get_user_with_active_profile(
     active_profile = result.scalar_one_or_none()
 
     if not active_profile:
-        return
+        raise UserIsUnauthorized()
     
     return user
 
