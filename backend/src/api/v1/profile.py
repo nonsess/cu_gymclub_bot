@@ -34,16 +34,6 @@ async def edit_profile(
         profile
     )
 
-# TODO: Move profile delete to admin endpoint
-# @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
-# async def delete_profile(
-#     profile_service: ProfileServiceDep,
-#     current_user: CurrentUserDep,
-# ):
-#     await profile_service.delete_profile(
-#         current_user.profile.id
-#     )
-
 @router.get("/next", response_model=ProfileResponse)
 async def get_next_profile(
     profile_service: ProfileServiceDep,
