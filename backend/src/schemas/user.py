@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class UserRegister(BaseModel):
-    telegram_id: str = Field(..., description="Telegram ID пользователя")
+    telegram_id: str = Field(..., min_length=1, description="Telegram ID пользователя")
     username: str = Field(None, description="Юзернейм Telegram")
     first_name: str = Field(None, description="Имя пользователя")
     
