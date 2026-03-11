@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
+from unittest.mock import AsyncMock, patch
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import text
 
@@ -70,10 +71,35 @@ async def client(session):
     if hasattr(deps, 'get_db'):
         app.dependency_overrides[deps.get_db] = override_get_db
     
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
     
     app.dependency_overrides = {}
+
+
+@pytest.fixture
+def mock_cache():
+    with patch('src.services.profile.cache') as mock_profile_cache, \
+         patch('src.services.action.cache') as mock_action_cache, \
+         patch('src.services.admin.cache') as mock_admin_cache:
+        
+        for mock in [mock_profile_cache, mock_action_cache, mock_admin_cache]:
+            mock.add_seen_user_id = AsyncMock()
+            mock.get_seen_user_ids = AsyncMock(return_value=[])
+            mock.invalidate_profile = AsyncMock()
+            mock.add_seen = AsyncMock()
+            mock.get_seen = AsyncMock(return_value=[])
+            mock.pop_from_queue = AsyncMock(return_value=None)
+            mock.get_cached_profile = AsyncMock(return_value=None)
+            mock.fill_queue = AsyncMock()
+            mock.cache_profile = AsyncMock()
+        
+        yield {
+            'profile': mock_profile_cache,
+            'action': mock_action_cache,
+            'admin': mock_admin_cache,
+        }
 
 
 @pytest.fixture
