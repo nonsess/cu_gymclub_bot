@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.core.exceptions.profile import NoMoreProfilesException
+from src.core.exceptions.profile import NoMoreProfilesException, ProfileNotFoundException
 from src.repositories.profile import ProfileRepository
 from src.repositories.user import UserRepository
 from src.repositories.action import ActionRepository
@@ -398,7 +398,12 @@ class ActionService:
                     }
                 )
                 raise SelfActionException()
+
+            profile_target_exists = await self.__profile_repo.get_by_user_id(target_user_id)
             
+            if not profile_target_exists:
+                raise ProfileNotFoundException()
+
             await self.__action_repo.create(
                 from_user_id=viewer_user_id,
                 to_user_id=target_user_id,
