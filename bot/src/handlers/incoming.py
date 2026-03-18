@@ -33,9 +33,9 @@ async def show_next_incoming(
     telegram_id: int,
     state: FSMContext
 ):
-    profile = await backend_client.get_next_incoming_like(telegram_id)
+    result = await backend_client.get_next_incoming_like(telegram_id)
     
-    if not profile:
+    if not result:
         await state.clear()
         await message.answer(
             "🎉 Вы посмотрели все входящие лайки!\nЗаходите позже ❤️",
@@ -43,7 +43,13 @@ async def show_next_incoming(
         )
         return
 
-    await state.update_data(current_incoming_id=profile["user_id"])
+    profile = {k: v for k, v in result.items() if k != "incoming_action_id"}
+    action_id = result["incoming_action_id"]
+    
+    await state.update_data(
+        current_action_id=action_id,
+        current_user_id=profile["user_id"]
+    )
     await state.set_state(IncomingStates.viewing_incoming)
     
     desc_parts = profile.get('description', '').split('\n\n🏋️ Опыт тренировок:')
@@ -64,62 +70,64 @@ async def show_next_incoming(
 async def incoming_like(message: types.Message, state: FSMContext):
     telegram_id = message.from_user.id
     data = await state.get_data()
-    to_user_id = data.get("current_incoming_id")
+    action_id = data.get("current_action_id")
     
-    if not to_user_id:
-        await message.answer("⚠️ Ошибка: анкета не найдена")
+    if not action_id:
+        await message.answer("⚠️ Ошибка: данные не найдены")
         return
     
-    await backend_client.decide_on_incoming(telegram_id, to_user_id, "like")
-
+    await backend_client.decide_on_incoming(telegram_id, action_id, "like")
     await show_next_incoming(message, telegram_id, state)
 
 @router.message(F.text == "👎", StateFilter(IncomingStates.viewing_incoming))
 async def incoming_dislike(message: types.Message, state: FSMContext):
     telegram_id = message.from_user.id
     data = await state.get_data()
-    to_user_id = data.get("current_incoming_id")
+    action_id = data.get("current_action_id")
     
-    if to_user_id:
-        await backend_client.decide_on_incoming(telegram_id, to_user_id, "dislike")
+    if not action_id:
+        await message.answer("⚠️ Ошибка: данные не найдены")
+        return
     
+    await backend_client.decide_on_incoming(telegram_id, action_id, "dislike")
     await show_next_incoming(message, telegram_id, state)
 
 @router.message(F.text == "⚠️ Жалоба", StateFilter(IncomingStates.viewing_incoming))
 async def incoming_report_start(message: types.Message, state: FSMContext):
     data = await state.get_data()
-    to_user_id = data.get("current_incoming_id")
+    action_id = data.get("current_action_id")
+    user_id = data.get("current_user_id")
     
-    if not to_user_id:
-        await message.answer("⚠️ Ошибка: анкета не найдена")
+    if not action_id:
+        await message.answer("⚠️ Ошибка: данные не найдены")
         return
     
     await state.set_state(IncomingStates.reporting)
     await message.answer(
         "Выберите причину жалобы:",
-        reply_markup=get_report_reason_keyboard(to_user_id)
+        reply_markup=get_report_reason_keyboard(action_id, user_id)
     )
 
 @router.callback_query(F.data.startswith("report_reason_"), StateFilter(IncomingStates.reporting))
 async def incoming_report_submit(callback: types.CallbackQuery, state: FSMContext):
     parts = callback.data.split("_")
-    reason = parts[2]
-    to_user_id = int(parts[3])
+    reason_key = parts[2]
+    action_id = int(parts[3])
     telegram_id = callback.from_user.id
     
     reason_labels = {"spam": "Спам/реклама", "fake": "Фейковая анкета", "other": "Другое"}
+    reason_text = reason_labels.get(reason_key, reason_key)
     
-    await backend_client.send_action(
-        telegram_id,
-        to_user_id,
-        "report",
-        report_reason=reason_labels.get(reason, reason)
+    await backend_client.decide_on_incoming(
+        telegram_id, 
+        action_id, 
+        "report", 
+        report_reason=reason_text
     )
     
     await callback.message.answer("✅ Жалоба отправлена!")
     await state.clear()
     
-    telegram_id = callback.from_user.id
     await show_next_incoming(callback.message, telegram_id, state)
 
 @router.callback_query(F.data == "cancel_report", StateFilter(IncomingStates.reporting))

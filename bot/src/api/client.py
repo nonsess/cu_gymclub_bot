@@ -83,18 +83,22 @@ class BackendClient:
     async def get_next_incoming_like(self, telegram_id: int) -> Optional[dict]:
         return await self._request("GET", "/matches/incoming/next", telegram_id)
     
-    async def decide_on_incoming(self, telegram_id: int, target_user_id: int, action_type: str) -> dict:
+    async def decide_on_incoming(
+        self, 
+        telegram_id: int, 
+        action_id: int, 
+        decision: str,
+        report_reason: str = None
+    ) -> dict:
         json_data = {
-            "to_user_id": target_user_id,
-            "action_type": action_type
+            "action_id": action_id,
+            "decision": decision
         }
-
-        return await self._request(
-            "POST",
-            f"/matches/incoming/{target_user_id}/decide",
-            telegram_id,
-            json=json_data
-        )
+        
+        if report_reason:
+            json_data["report_reason"] = report_reason
+        
+        return await self._request("POST", "/matches/incoming/decide", telegram_id, json=json_data)
 
     async def start_broadcast(self, telegram_id: int, message_text: str) -> dict:
         return await self._request(
