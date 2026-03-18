@@ -5,7 +5,7 @@ from src.repositories.user import UserRepository
 from src.repositories.action import ActionRepository
 from src.repositories.match import MatchRepository
 from src.models.action import ActionTypeEnum
-from src.core.exceptions.action import SelfActionException
+from src.core.exceptions.action import ActionAlreadyRespondedException, SelfActionException
 from src.services.telegram import telegram_service
 from src.services.cache import cache
 from src.core.config import settings
@@ -258,7 +258,7 @@ class ActionService:
         to_user_id: int, 
         action_type: ActionTypeEnum,
         report_reason: str = None
-    ) -> dict:
+    ) -> int:
         self.logger.info(
             "Sending action",
             extra={
@@ -282,7 +282,7 @@ class ActionService:
                 )
                 raise SelfActionException()
                     
-            await self.__action_repo.create(
+            action = await self.__action_repo.create(
                 from_user_id=from_user_id,
                 to_user_id=to_user_id,
                 action_type=action_type.value.lower(),
@@ -293,6 +293,7 @@ class ActionService:
                 "Action saved to database",
                 extra={
                     "operation": "send_action",
+                    "action_id": action.id,
                     "from_user_id": from_user_id,
                     "to_user_id": to_user_id,
                     "action_type": action_type.value if action_type else None
@@ -312,33 +313,7 @@ class ActionService:
             )
 
             if action_type == ActionTypeEnum.like:
-                is_match = await self.__action_repo.check_mutual_like(from_user_id, to_user_id)
-                
-                self.logger.debug(
-                    f"Mutual like check: {is_match}",
-                    extra={
-                        "operation": "send_action",
-                        "from_user_id": from_user_id,
-                        "to_user_id": to_user_id,
-                        "is_match": is_match
-                    }
-                )
-                
-                if is_match:
-                    match = await self.__match_repo.create_match(from_user_id, to_user_id)
-                    self.logger.info(
-                        "Match created",
-                        extra={
-                            "operation": "send_action",
-                            "match_id": match.id,
-                            "user1_id": from_user_id,
-                            "user2_id": to_user_id
-                        }
-                    )
-                    await self._send_match_notification(from_user_id, to_user_id)
-                else:
-                    await self._send_like_notification(to_user_id)
-                    
+                await self._send_like_notification(to_user_id)                    
             elif action_type == ActionTypeEnum.report and report_reason:
                 self.logger.info(
                     "Report action processed",
@@ -354,7 +329,12 @@ class ActionService:
                     to_user_id,
                     report_reason
                 )
-                
+            
+            return {
+                "action_id": action.id,
+                "success": True
+            }
+    
         except SelfActionException:
             raise
         except Exception as e:
@@ -375,48 +355,99 @@ class ActionService:
     async def decide_on_incoming(
         self, 
         viewer_user_id: int, 
-        target_user_id: int, 
-        action_type: ActionTypeEnum
+        action_id: int, 
+        decision_type: ActionTypeEnum,
+        report_reason: str,
     ) -> dict:
         self.logger.info(
             "Deciding on incoming like",
             extra={
                 "operation": "decide_on_incoming",
                 "viewer_user_id": viewer_user_id,
-                "target_user_id": target_user_id,
-                "action_type": action_type.value if action_type else None
+                "action_id": action_id,
+                "decision_type": decision_type.value if decision_type else None
             }
         )
         
         try:
-            if viewer_user_id == target_user_id:
+            incoming_action = await self.__action_repo.get(action_id)
+            
+            if not incoming_action:
                 self.logger.warning(
-                    "Self action attempted on incoming decision",
+                    "Incoming action not found",
                     extra={
                         "operation": "decide_on_incoming",
-                        "user_id": viewer_user_id
+                        "action_id": action_id,
+                        "viewer_user_id": viewer_user_id
                     }
                 )
-                raise SelfActionException()
-
-            profile_target_exists = await self.__profile_repo.get_by_user_id(target_user_id)
+                raise ProfileNotFoundException()
             
-            if not profile_target_exists:
+            if incoming_action.to_user_id != viewer_user_id:
+                self.logger.warning(
+                    "Action not addressed to this user",
+                    extra={
+                        "operation": "decide_on_incoming",
+                        "action_id": action_id,
+                        "viewer_user_id": viewer_user_id,
+                        "action_to_user_id": incoming_action.to_user_id
+                    }
+                )
+                raise ProfileNotFoundException()
+            
+            if incoming_action.action_type != ActionTypeEnum.like:
+                self.logger.warning(
+                    "Action is not a like",
+                    extra={
+                        "operation": "decide_on_incoming",
+                        "action_id": action_id,
+                        "action_type": incoming_action.action_type.value if incoming_action.action_type else None
+                    }
+                )
+                raise NoMoreProfilesException()
+            
+            if incoming_action.is_responded:
+                self.logger.warning(
+                    "Action already responded",
+                    extra={
+                        "operation": "decide_on_incoming",
+                        "action_id": action_id,
+                        "viewer_user_id": viewer_user_id
+                    }
+                )
+                raise ActionAlreadyRespondedException()
+            
+            target_user_id = incoming_action.from_user_id
+            
+            profile_target = await self.__profile_repo.get_by_user_id(target_user_id)
+            if not profile_target or not profile_target.is_active:
                 raise ProfileNotFoundException()
 
-            await self.__action_repo.create(
+            await self.__action_repo.mark_as_responded(action_id)
+            
+            self.logger.debug(
+                "Original like marked as responded",
+                extra={
+                    "operation": "decide_on_incoming",
+                    "action_id": action_id
+                }
+            )
+
+            response_action = await self.__action_repo.create(
                 from_user_id=viewer_user_id,
                 to_user_id=target_user_id,
-                action_type=action_type
+                action_type=decision_type,
+                report_reason=report_reason if report_reason else ""
             )
-            
+
             self.logger.debug(
                 "Decision saved to database",
                 extra={
                     "operation": "decide_on_incoming",
+                    "response_action_id": response_action.id,
                     "viewer_user_id": viewer_user_id,
                     "target_user_id": target_user_id,
-                    "action_type": action_type.value if action_type else None
+                    "decision_type": decision_type.value if decision_type else None
                 }
             )
             
@@ -431,7 +462,9 @@ class ActionService:
                 }
             )
             
-            if action_type == ActionTypeEnum.like:
+            result = {"success": True}
+            
+            if decision_type == ActionTypeEnum.like:
                 match = await self.__match_repo.create_match(viewer_user_id, target_user_id)
                 self.logger.info(
                     "Match created from incoming decision",
@@ -443,8 +476,12 @@ class ActionService:
                     }
                 )
                 await self._send_match_notification(viewer_user_id, target_user_id)
+                result["match"] = match
+                result["match_id"] = match.id
+            
+            return result
                 
-        except SelfActionException:
+        except (SelfActionException, ProfileNotFoundException, NoMoreProfilesException, ActionAlreadyRespondedException):
             raise
         except Exception as e:
             self.logger.error(
@@ -452,8 +489,8 @@ class ActionService:
                 extra={
                     "operation": "decide_on_incoming",
                     "viewer_user_id": viewer_user_id,
-                    "target_user_id": target_user_id,
-                    "action_type": action_type.value if action_type else None,
+                    "action_id": action_id,
+                    "decision_type": decision_type.value if decision_type else None,
                     "error_type": type(e).__name__,
                     "error": str(e)
                 },
@@ -471,18 +508,9 @@ class ActionService:
         )
         
         try:
-            incoming_actions = await self.__action_repo.get_incoming_likes(user_id)
+            action = await self.__action_repo.get_next_incoming_like(user_id)
             
-            self.logger.debug(
-                f"Found {len(incoming_actions)} incoming likes",
-                extra={
-                    "operation": "get_next_incoming_like",
-                    "user_id": user_id,
-                    "incoming_count": len(incoming_actions)
-                }
-            )
-            
-            if not incoming_actions:
+            if not action:
                 self.logger.debug(
                     "No incoming likes found",
                     extra={
@@ -492,29 +520,36 @@ class ActionService:
                 )
                 raise NoMoreProfilesException()
             
-            for action in incoming_actions:
-                profile = await self.__profile_repo.get_by_user_id(action.from_user_id)
-                if profile and profile.is_active:
-                    self.logger.debug(
-                        "Found active profile for incoming like",
-                        extra={
-                            "operation": "get_next_incoming_like",
-                            "user_id": user_id,
-                            "from_user_id": action.from_user_id,
-                            "profile_id": profile.id
-                        }
-                    )
-                    return profile
+            profile = await self.__profile_repo.get_by_user_id(action.from_user_id)
+            
+            if not profile or not profile.is_active:
+                self.logger.debug(
+                    "Profile is not active, skipping",
+                    extra={
+                        "operation": "get_next_incoming_like",
+                        "user_id": user_id,
+                        "from_user_id": action.from_user_id,
+                        "profile_id": profile.id if profile else None
+                    }
+                )
+                raise NoMoreProfilesException()
             
             self.logger.debug(
-                "No active profiles found for incoming likes",
+                "Found active profile for incoming like",
                 extra={
                     "operation": "get_next_incoming_like",
-                    "user_id": user_id
+                    "user_id": user_id,
+                    "from_user_id": action.from_user_id,
+                    "action_id": action.id,
+                    "profile_id": profile.id
                 }
             )
-            raise NoMoreProfilesException()
             
+            return {
+                "profile": profile,
+                "action_id": action.id
+            }
+                
         except NoMoreProfilesException:
             raise
         except Exception as e:
