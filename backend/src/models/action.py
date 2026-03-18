@@ -3,7 +3,8 @@ from sqlalchemy import (
     ForeignKey,
     CheckConstraint,
     Index,
-    Integer
+    Integer,
+    Boolean
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import ENUM
@@ -33,13 +34,16 @@ class UserAction(BaseModel):
     from_user = relationship("User", foreign_keys=[from_user_id], back_populates="sent_actions")
     to_user = relationship("User", foreign_keys=[to_user_id], back_populates="received_actions")
     
+    is_responded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     __table_args__ = (
         CheckConstraint("from_user_id != to_user_id", name="chk_actions_not_self"),
         Index("idx_actions_from_user", "from_user_id"),
         Index("idx_actions_to_user", "to_user_id"),
         Index("idx_actions_type", "action_type"),
+        Index("idx_actions_incoming", "to_user_id", "is_responded", "action_type"),
     )
-    
+
     def __repr__(self):
         return f"<UserAction(from={self.from_user_id} {self.action_type.value} {self.to_user_id})>"
 

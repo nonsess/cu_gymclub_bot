@@ -1,7 +1,7 @@
 from src.repositories.base import BaseRepository
 from src.models.action import UserAction, ActionTypeEnum
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select, update, and_
 from src.core.logger import get_repo_logger
 
 class ActionRepository(BaseRepository[UserAction]):
@@ -38,6 +38,7 @@ class ActionRepository(BaseRepository[UserAction]):
                     extra={
                         "action_id": action.id,
                         "action_type": action.action_type.value if action.action_type else None,
+                        "is_responded": action.is_responded,
                         "found": True,
                         "operation": "get_action"
                     }
@@ -67,98 +68,122 @@ class ActionRepository(BaseRepository[UserAction]):
             )
             raise
 
-    async def get_incoming_likes(self, user_id: int) -> list[UserAction]:
+    async def get_next_incoming_like(self, user_id: int) -> UserAction | None:
         self.logger.debug(
-            f"Getting incoming likes",
+            f"Getting next incoming like",
             extra={
                 "user_id": user_id,
-                "operation": "get_incoming_likes"
+                "operation": "get_next_incoming_like"
             }
         )
         
         try:
             subquery = (
-                select(UserAction.to_user_id)
-                .where(UserAction.from_user_id == user_id)
+                select(
+                    UserAction.from_user_id,
+                    func.max(UserAction.created_at).label('last_like_time')
+                )
+                .where(
+                    and_(
+                        UserAction.to_user_id == user_id,
+                        UserAction.action_type == ActionTypeEnum.like,
+                        UserAction.is_responded == False
+                    )
+                )
+                .group_by(UserAction.from_user_id)
+                .subquery()
             )
             
             query = (
                 select(UserAction)
-                .where(UserAction.to_user_id == user_id)
-                .where(UserAction.action_type == ActionTypeEnum.like)
-                .where(UserAction.from_user_id.notin_(subquery))
+                .join(
+                    subquery,
+                    and_(
+                        UserAction.from_user_id == subquery.c.from_user_id,
+                        UserAction.created_at == subquery.c.last_like_time
+                    )
+                )
+                .where(
+                    and_(
+                        UserAction.to_user_id == user_id,
+                        UserAction.action_type == ActionTypeEnum.like,
+                        UserAction.is_responded == False
+                    )
+                )
                 .order_by(UserAction.created_at.desc())
+                .limit(1)
             )
             
             result = await self.session.execute(query)
-            actions = list(result.scalars().all())
+            action = result.scalar_one_or_none()
             
-            self.logger.debug(
-                f"Found {len(actions)} incoming likes",
-                extra={
-                    "user_id": user_id,
-                    "count": len(actions),
-                    "operation": "get_incoming_likes"
-                }
-            )
+            if action:
+                self.logger.debug(
+                    f"Found incoming like",
+                    extra={
+                        "user_id": user_id,
+                        "from_user_id": action.from_user_id,
+                        "action_id": action.id,
+                        "operation": "get_next_incoming_like"
+                    }
+                )
+            else:
+                self.logger.debug(
+                    f"No incoming likes found",
+                    extra={
+                        "user_id": user_id,
+                        "operation": "get_next_incoming_like"
+                    }
+                )
             
-            return actions
+            return action
             
         except Exception as e:
             self.logger.error(
-                f"Error getting incoming likes",
+                f"Error getting next incoming like",
                 extra={
                     "user_id": user_id,
                     "error_type": type(e).__name__,
                     "error": str(e),
-                    "operation": "get_incoming_likes"
+                    "operation": "get_next_incoming_like"
                 },
                 exc_info=True
             )
             raise
 
-    async def check_mutual_like(self, user1_id: int, user2_id: int) -> bool:
+    async def mark_as_responded(self, action_id: int) -> None:
         self.logger.debug(
-            f"Checking mutual like",
+            f"Marking action as responded",
             extra={
-                "user1_id": user1_id,
-                "user2_id": user2_id,
-                "operation": "check_mutual_like"
+                "action_id": action_id,
+                "operation": "mark_as_responded"
             }
         )
         
         try:
-            result = await self.session.execute(
-                select(UserAction).where(
-                    UserAction.from_user_id == user2_id,
-                    UserAction.to_user_id == user1_id,
-                    UserAction.action_type == ActionTypeEnum.like
-                )
+            await self.session.execute(
+                update(UserAction)
+                .where(UserAction.id == action_id)
+                .values(is_responded=True)
             )
-            
-            is_mutual = result.scalar_one_or_none() is not None
+            await self.session.flush()
             
             self.logger.debug(
-                f"Mutual like check result: {is_mutual}",
+                f"Action marked as responded",
                 extra={
-                    "user1_id": user1_id,
-                    "user2_id": user2_id,
-                    "is_mutual": is_mutual,
-                    "operation": "check_mutual_like"
+                    "action_id": action_id,
+                    "operation": "mark_as_responded"
                 }
             )
             
-            return is_mutual
-            
         except Exception as e:
             self.logger.error(
-                f"Error checking mutual like",
+                f"Error marking action as responded",
                 extra={
-                    "user1_id": user1_id,
-                    "user2_id": user2_id,
+                    "action_id": action_id,
                     "error_type": type(e).__name__,
                     "error": str(e),
-                    "operation": "check_mutual_like"
+                    "operation": "mark_as_responded"
                 },
                 exc_info=True
             )
