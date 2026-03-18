@@ -217,6 +217,7 @@ async def test_update_profile_partial(client, session, mock_cache):
     assert data["age"] == 26
     assert data["name"] == "Partial"
 
+
 @pytest.mark.asyncio
 async def test_update_profile_not_found(client, session):
     from src.repositories.user import UserRepository
@@ -334,6 +335,7 @@ async def test_get_next_profile_no_more_profiles(client, session, mock_cache):
     
     assert response.status_code == 404
 
+
 @pytest.mark.asyncio
 async def test_get_next_profile_user_has_no_profile(client, session, mock_cache):
     from src.repositories.user import UserRepository
@@ -352,13 +354,16 @@ async def test_get_next_profile_user_has_no_profile(client, session, mock_cache)
     
     assert response.status_code == 401
 
+
 @pytest.mark.asyncio
 async def test_get_next_profile_excludes_seen(client, session, mock_cache):
     from src.repositories.user import UserRepository
     from src.repositories.profile import ProfileRepository
+    from src.repositories.action import ActionRepository
     
     user_repo = UserRepository(session)
     profile_repo = ProfileRepository(session)
+    action_repo = ActionRepository(session)
     
     current_user = await user_repo.create(telegram_id="808080808", username="@seen_test")
     await profile_repo.create(
@@ -371,7 +376,7 @@ async def test_get_next_profile_excludes_seen(client, session, mock_cache):
     )
     
     user1 = await user_repo.create(telegram_id="808080801", username="@seen1")
-    profile1 = await profile_repo.create(
+    await profile_repo.create(
         user_id=user1.id,
         name="Seen User 1",
         description="Люблю тренироваться каждый день в зале",
@@ -381,7 +386,7 @@ async def test_get_next_profile_excludes_seen(client, session, mock_cache):
     )
     
     user2 = await user_repo.create(telegram_id="808080802", username="@seen2")
-    profile2 = await profile_repo.create(
+    await profile_repo.create(
         user_id=user2.id,
         name="Seen User 2",
         description="Люблю тренироваться каждый день в зале",
@@ -390,16 +395,29 @@ async def test_get_next_profile_excludes_seen(client, session, mock_cache):
         embedding=[0.2] * 384
     )
     
-    mock_cache['profile'].add_seen_user_id = AsyncMock()
+    action1 = await action_repo.create(
+        from_user_id=user1.id,
+        to_user_id=current_user.id,
+        action_type="like"
+    )
+    await action_repo.mark_as_responded(action1.id)
+    await session.commit()
+    
+    action2 = await action_repo.create(
+        from_user_id=user2.id,
+        to_user_id=current_user.id,
+        action_type="like"
+    )
+    await session.commit()
+    
     mock_cache['profile'].pop_from_queue = AsyncMock(return_value=None)
     mock_cache['profile'].get_seen_user_ids = AsyncMock(return_value=[user1.id])
     
     response = await client.get(
-        "/profile/next",
+        "/matches/incoming/next",
         headers={"X-Telegram-ID": "808080808"}
     )
     
     assert response.status_code == 200
     data = response.json()
-    
-    assert data["name"] != "Seen User 1"
+    assert data["name"] == "Seen User 2"
