@@ -2,8 +2,6 @@ import pytest
 from unittest.mock import AsyncMock
 from src.models.profile import GenderEnum
 from src.models.action import ActionTypeEnum
-from src.repositories.base import BaseRepository
-from src.models.match import Match
 
 
 @pytest.mark.asyncio
@@ -77,7 +75,7 @@ async def test_get_incoming_like_no_more_likes(client, session):
 
 
 @pytest.mark.asyncio
-async def test_get_incoming_like_excludes_answered(client, session):
+async def test_get_incoming_like_excludes_answered(client, session, mock_cache):
     from src.repositories.user import UserRepository
     from src.repositories.profile import ProfileRepository
     from src.repositories.action import ActionRepository
@@ -113,22 +111,21 @@ async def test_get_incoming_like_excludes_answered(client, session):
         age=28
     )
     
-    await action_repo.create(
+    action1 = await action_repo.create(
         from_user_id=sender1.id,
         to_user_id=receiver.id,
         action_type=ActionTypeEnum.like.value.lower()
     )
-    await action_repo.create(
+    action2 = await action_repo.create(
         from_user_id=sender2.id,
         to_user_id=receiver.id,
         action_type=ActionTypeEnum.like.value.lower()
     )
     
-    await action_repo.create(
-        from_user_id=receiver.id,
-        to_user_id=sender1.id,
-        action_type=ActionTypeEnum.dislike.value.lower()
-    )
+    await action_repo.mark_as_responded(action1.id)
+    await session.commit()
+    
+    mock_cache['action'].add_seen_user_id = AsyncMock()
     
     response = await client.get(
         "/matches/incoming/next",
@@ -138,6 +135,7 @@ async def test_get_incoming_like_excludes_answered(client, session):
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Sender2"
+    assert data["incoming_action_id"] == action2.id
 
 
 @pytest.mark.asyncio
@@ -145,6 +143,9 @@ async def test_decide_incoming_like_creates_match(client, session, mock_cache):
     from src.repositories.user import UserRepository
     from src.repositories.profile import ProfileRepository
     from src.repositories.action import ActionRepository
+    from src.repositories.base import BaseRepository
+    from src.models.match import Match
+    from src.models.action import ActionTypeEnum
     
     user_repo = UserRepository(session)
     profile_repo = ProfileRepository(session)
@@ -168,7 +169,7 @@ async def test_decide_incoming_like_creates_match(client, session, mock_cache):
         age=23
     )
     
-    await action_repo.create(
+    incoming = await action_repo.create(
         from_user_id=user1.id,
         to_user_id=user2.id,
         action_type=ActionTypeEnum.like.value.lower()
@@ -177,10 +178,10 @@ async def test_decide_incoming_like_creates_match(client, session, mock_cache):
     mock_cache['action'].add_seen_user_id = AsyncMock()
     
     response = await client.post(
-        f"/matches/incoming/{user1.id}/decide",
+        "/matches/incoming/decide",
         json={
-            "to_user_id": user1.id,
-            "action_type": "like"
+            "action_id": incoming.id,
+            "decision": "like"
         },
         headers={"X-Telegram-ID": "333444556"}
     )
@@ -189,11 +190,7 @@ async def test_decide_incoming_like_creates_match(client, session, mock_cache):
     
     base_match_repo = BaseRepository(Match, session)
     matches = await base_match_repo.get_all(limit=10)
-    
-    match_found = any(
-        {m.user1_id, m.user2_id} == {user1.id, user2.id}
-        for m in matches
-    )
+    match_found = any({m.user1_id, m.user2_id} == {user1.id, user2.id} for m in matches)
     assert match_found
 
 
@@ -227,7 +224,7 @@ async def test_decide_incoming_dislike_no_match(client, session, mock_cache):
         age=30
     )
     
-    await action_repo.create(
+    incoming = await action_repo.create(
         from_user_id=user1.id,
         to_user_id=user2.id,
         action_type=ActionTypeEnum.like.value.lower()
@@ -236,10 +233,10 @@ async def test_decide_incoming_dislike_no_match(client, session, mock_cache):
     mock_cache['action'].add_seen_user_id = AsyncMock()
     
     response = await client.post(
-        f"/matches/incoming/{user1.id}/decide",
+        "/matches/incoming/decide",
         json={
-            "to_user_id": user1.id,
-            "action_type": "dislike"
+            "action_id": incoming.id,
+            "decision": "dislike"
         },
         headers={"X-Telegram-ID": "444555667"}
     )
@@ -248,11 +245,7 @@ async def test_decide_incoming_dislike_no_match(client, session, mock_cache):
     
     base_match_repo = BaseRepository(Match, session)
     matches = await base_match_repo.get_all(limit=10)
-    
-    match_found = any(
-        {m.user1_id, m.user2_id} == {user1.id, user2.id}
-        for m in matches
-    )
+    match_found = any({m.user1_id, m.user2_id} == {user1.id, user2.id} for m in matches)
     assert not match_found
 
 
@@ -274,15 +267,15 @@ async def test_decide_incoming_self_action_error(client, session):
     )
     
     response = await client.post(
-        f"/matches/incoming/{user.id}/decide",
+        "/matches/incoming/decide",
         json={
-            "to_user_id": user.id,
-            "action_type": "like"
+            "action_id": 999999,
+            "decision": "like"
         },
         headers={"X-Telegram-ID": "555666777"}
     )
     
-    assert response.status_code in [400, 422]
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

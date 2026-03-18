@@ -1,8 +1,6 @@
 import pytest
-from src.models.profile import GenderEnum
 from src.repositories.action import ActionRepository
 from src.repositories.user import UserRepository
-from src.repositories.profile import ProfileRepository
 from src.models.action import ActionTypeEnum
 
 
@@ -69,98 +67,54 @@ async def test_get_action_not_found(session):
 
 
 @pytest.mark.asyncio
-async def test_check_mutual_like_true(session):
-    user_repo = UserRepository(session)
-    user1 = await user_repo.create(telegram_id="800007")
-    user2 = await user_repo.create(telegram_id="800008")
+async def test_get_next_incoming_like_returns_one(session):
+    from src.repositories.user import UserRepository
+    from src.repositories.profile import ProfileRepository
+    from src.repositories.action import ActionRepository
+    from src.models.profile import GenderEnum
     
-    repo = ActionRepository(session)
-    await repo.create(
-        from_user_id=user1.id,
-        to_user_id=user2.id,
-        action_type=ActionTypeEnum.like
-    )
-    await repo.create(
-        from_user_id=user2.id,
-        to_user_id=user1.id,
-        action_type=ActionTypeEnum.like
-    )
-    
-    is_match = await repo.check_mutual_like(user1.id, user2.id)
-    assert is_match == True
-
-
-@pytest.mark.asyncio
-async def test_check_mutual_like_false(session):
-    user_repo = UserRepository(session)
-    user1 = await user_repo.create(telegram_id="800009")
-    user2 = await user_repo.create(telegram_id="800010")
-    
-    repo = ActionRepository(session)
-    await repo.create(
-        from_user_id=user1.id,
-        to_user_id=user2.id,
-        action_type=ActionTypeEnum.like
-    )
-    
-    is_match = await repo.check_mutual_like(user1.id, user2.id)
-    assert is_match == False
-
-
-@pytest.mark.asyncio
-async def test_get_incoming_likes(session):
     user_repo = UserRepository(session)
     profile_repo = ProfileRepository(session)
+    action_repo = ActionRepository(session)
     
-    receiver = await user_repo.create(telegram_id="800011")
+    receiver = await user_repo.create(telegram_id="recv_one")
+    sender1 = await user_repo.create(telegram_id="send1_one")
+    sender2 = await user_repo.create(telegram_id="send2_one")
+    
     await profile_repo.create(
         user_id=receiver.id,
         name="Receiver",
-        description="Desc",
-        gender=GenderEnum.female
+        description="Люблю тренироваться каждый день в зале",
+        gender=GenderEnum.female,
+        age=25
+    )
+    await profile_repo.create(
+        user_id=sender1.id,
+        name="Sender1",
+        description="Люблю спорт",
+        gender=GenderEnum.male,
+        age=30
+    )
+    await profile_repo.create(
+        user_id=sender2.id,
+        name="Sender2",
+        description="Люблю кроссфит",
+        gender=GenderEnum.male,
+        age=28
     )
     
-    sender1 = await user_repo.create(telegram_id="800012")
-    sender2 = await user_repo.create(telegram_id="800013")
-    
-    repo = ActionRepository(session)
-    await repo.create(
+    await action_repo.create(
         from_user_id=sender1.id,
         to_user_id=receiver.id,
-        action_type=ActionTypeEnum.like
+        action_type="like"
     )
-    await repo.create(
+    await action_repo.create(
         from_user_id=sender2.id,
         to_user_id=receiver.id,
-        action_type=ActionTypeEnum.like
-    )
-
-    incoming = await repo.get_incoming_likes(receiver.id)
-    
-    assert len(incoming) == 2
-    assert all(a.action_type == ActionTypeEnum.like for a in incoming)
-
-
-@pytest.mark.asyncio
-async def test_get_incoming_likes_excludes_answered(session):
-    user_repo = UserRepository(session)
-    profile_repo = ProfileRepository(session)
-    
-    receiver = await user_repo.create(telegram_id="800014")
-    await profile_repo.create(
-        user_id=receiver.id,
-        name="Receiver",
-        description="Desc",
-        gender=GenderEnum.female
+        action_type="like"
     )
     
-    sender = await user_repo.create(telegram_id="800015")
+    action = await action_repo.get_next_incoming_like(receiver.id)
     
-    repo = ActionRepository(session)
-
-    await repo.create(from_user_id=sender.id, to_user_id=receiver.id, action_type=ActionTypeEnum.like)
-    await repo.create(from_user_id=receiver.id, to_user_id=sender.id, action_type=ActionTypeEnum.dislike)
-    
-    incoming = await repo.get_incoming_likes(receiver.id)
-    
-    assert len(incoming) == 0
+    assert action is not None
+    assert action.from_user_id in [sender1.id, sender2.id]
