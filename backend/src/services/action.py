@@ -432,24 +432,6 @@ class ActionService:
                     "action_id": action_id
                 }
             )
-
-            response_action = await self.__action_repo.create(
-                from_user_id=viewer_user_id,
-                to_user_id=target_user_id,
-                action_type=decision_type,
-                report_reason=report_reason if report_reason else ""
-            )
-
-            self.logger.debug(
-                "Decision saved to database",
-                extra={
-                    "operation": "decide_on_incoming",
-                    "response_action_id": response_action.id,
-                    "viewer_user_id": viewer_user_id,
-                    "target_user_id": target_user_id,
-                    "decision_type": decision_type.value if decision_type else None
-                }
-            )
             
             await cache.add_seen_user_id(viewer_user_id, target_user_id)
             
@@ -478,6 +460,13 @@ class ActionService:
                 await self._send_match_notification(viewer_user_id, target_user_id)
                 result["match"] = match
                 result["match_id"] = match.id
+            
+            if decision_type == ActionTypeEnum.report:
+                await self._send_report_notification_to_admin(
+                    from_user_id=viewer_user_id,
+                    to_user_id=target_user_id,
+                    report_reason=report_reason
+                )
             
             return result
                 
