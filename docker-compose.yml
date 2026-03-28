@@ -22,7 +22,7 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./backend:/app
-      - model_cache:/app/model_cache
+      - ./backend/model_cache:/app/model_cache
     depends_on:
       - db
     restart: unless-stopped

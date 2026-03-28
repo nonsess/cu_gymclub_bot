@@ -64,4 +64,6 @@ dist/
 # Snyk cache
 .dccache
 
+model_cache
+
 logs
