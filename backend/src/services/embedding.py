@@ -1,151 +1,55 @@
-import asyncio
-from typing import List
-from sentence_transformers import SentenceTransformer
+import numpy as np
+from transformers import AutoTokenizer
+from optimum.onnxruntime import ORTModelForFeatureExtraction
+
 from src.core.logger import get_service_logger
 
 class EmbeddingService:
     def __init__(self):
         self.logger = get_service_logger()
-        self.logger.info(
-            "Initializing embedding service",
-            extra={
-                "operation": "init",
-                "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-                "cache_folder": "/app/model_cache"
-            }
-        )
-        
-        try:
-            self.__model = SentenceTransformer(
-                'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2',
-                cache_folder='/app/model_cache'
-            )
-            self.logger.debug(
-                "Model loaded successfully",
-                extra={"operation": "init"}
-            )
-        except Exception as e:
-            self.logger.error(
-                "Failed to load embedding model",
-                extra={
-                    "operation": "init",
-                    "error_type": type(e).__name__,
-                    "error": str(e)
-                },
-                exc_info=True
-            )
-            raise
-        
-    def _clean_description(
-        self,
-        description: str,
-    ) -> str:
-        original_length = len(description)
-        cleaned = " ".join(description.split())
-        cleaned_length = len(cleaned)
-        
-        if original_length != cleaned_length:
-            self.logger.debug(
-                "Description cleaned",
-                extra={
-                    "operation": "_clean_description",
-                    "original_length": original_length,
-                    "cleaned_length": cleaned_length,
-                    "spaces_removed": original_length - cleaned_length
-                }
-            )
-        
-        return cleaned
 
-    def _generate_sync(
-        self,
-        description: str,
-    ) -> List[float]:
+        model_id = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
+        cache_dir = '/app/model_cache'
+
+        self.logger.info("Initializing Optimum embedding service", extra={"model": model_id})
+        
         try:
-            text = self._clean_description(description)
-            
-            self.logger.debug(
-                "Generating embedding",
-                extra={
-                    "operation": "_generate_sync",
-                    "text_length": len(text),
-                    "text_preview": text[:100] + "..." if len(text) > 100 else text
-                }
+            self.tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
+            self.model = ORTModelForFeatureExtraction.from_pretrained(
+                model_id,
+                export=True, 
+                provider="CPUExecutionProvider",
+                cache_dir=cache_dir
             )
-            
-            embedding = self.__model.encode(
-                text,
-                convert_to_numpy=True,
-                normalize_embeddings=True
-            )
-            
-            embedding_list = embedding.tolist()
-            
-            self.logger.debug(
-                "Embedding generated",
-                extra={
-                    "operation": "_generate_sync",
-                    "embedding_length": len(embedding_list),
-                    "embedding_preview": embedding_list[:5] if embedding_list else []
-                }
-            )
-            
-            return embedding_list
-            
+            self.logger.debug("Optimum model loaded successfully")
         except Exception as e:
-            self.logger.error(
-                "Failed to generate embedding synchronously",
-                extra={
-                    "operation": "_generate_sync",
-                    "description_length": len(description) if description else 0,
-                    "error_type": type(e).__name__,
-                    "error": str(e)
-                },
-                exc_info=True
-            )
+            self.logger.error("Failed to load Optimum model", exc_info=True)
             raise
     
-    async def generate_embedding(
-        self,
-        description: str,
-    ) -> List[float]:
-        self.logger.debug(
-            "Generating embedding asynchronously",
-            extra={
-                "operation": "generate_embedding",
-                "description_length": len(description) if description else 0,
-                "description_preview": description[:100] + "..." if description and len(description) > 100 else description
-            }
+    def _mean_pooling(self, last_hidden_state, attention_mask):
+        mask = np.expand_dims(attention_mask, axis=-1).astype(float)
+        sum_embeddings = np.sum(last_hidden_state * mask, axis=1)
+        sum_mask = np.clip(mask.sum(axis=1), a_min=1e-9, a_max=None)
+        return sum_embeddings / sum_mask
+        
+    async def generate_embedding(self, text: str) -> list[float]:
+        clean_text = " ".join(text.split())
+        
+        inputs = self.tokenizer(
+            clean_text, 
+            return_tensors="np", 
+            padding=True, 
+            truncation=True, 
+            max_length=256
         )
         
-        try:
-            embedding = await asyncio.to_thread(
-                self._generate_sync,
-                description
-            )
-            
-            self.logger.debug(
-                "Embedding generated successfully",
-                extra={
-                    "operation": "generate_embedding",
-                    "embedding_length": len(embedding),
-                    "description_length": len(description) if description else 0
-                }
-            )
-            
-            return embedding
-            
-        except Exception as e:
-            self.logger.error(
-                "Failed to generate embedding",
-                extra={
-                    "operation": "generate_embedding",
-                    "description_length": len(description) if description else 0,
-                    "error_type": type(e).__name__,
-                    "error": str(e)
-                },
-                exc_info=True
-            )
-            raise
+        outputs = self.model(**inputs)
+        
+        embeddings = self._mean_pooling(outputs.last_hidden_state, inputs['attention_mask'])
+        
+        norm = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        embeddings = embeddings / norm
+        
+        return embeddings[0].tolist()
 
 embedding_service = EmbeddingService()
